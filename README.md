@@ -12,3 +12,4 @@ Yep. There are quite a few. This is a side project that only gets attention when
 Ground up everything! (No imports beyond builtins.)
 Data Visualization
 Frontend through a Python framework (Django?)
+* Dave want's a BI. Let's do something pretty to sit on this engine!
