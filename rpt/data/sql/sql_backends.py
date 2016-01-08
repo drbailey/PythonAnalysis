@@ -14,7 +14,7 @@ REBUILD:
 docs need a lot of work.
 """
 
-from ...__box__ import MASTER_TABLES, USER_TABLE, CONNECTION_TABLE, CRON_LOG_TABLE, LOG_TABLE, GLOBAL_TABLE
+from ...config import MASTER_TABLES, USER_TABLE, CONNECTION_TABLE, CRON_LOG_TABLE, LOG_TABLE, GLOBAL_TABLE
 from ...util import clean, broadcast
 from sqlite3 import PARSE_COLNAMES, InterfaceError as sqlite3InterfaceError
 from pyodbc import InterfaceError as pyodbcInterfaceError

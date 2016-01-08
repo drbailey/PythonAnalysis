@@ -5,7 +5,7 @@ __version__ = 2.0
 User facing new, edit, and remove functions acting on master tables.
 """
 
-from __box__ import (MASTER_TABLES,
+from config import (MASTER_TABLES,
                      MASTER_TABLES_INDICES,
                      CRON_TABLE,
                      CRON_FIELDS,
@@ -445,7 +445,7 @@ class SetupMaster(Config, Menu):
     def write_path():
         """
         Writes the PATH string to rpt directory on setup. This PATH is used as master PATH in the rest of the package
-        via  __box__.
+        via config.
         :return: None
         """
         with open(PACKAGE_PATH+'\\path.py', 'w') as to:
@@ -453,7 +453,7 @@ class SetupMaster(Config, Menu):
 
     def index_master_tables(self):
         """
-        Indexes all master tables on the key held in __box__.
+        Indexes all master tables on the key held in config.
         :return: None
         """
         if is_db(MASTER_DB_NAME):
@@ -662,7 +662,7 @@ class SetupMaster(Config, Menu):
 # ## MENUS ###
 """
 Uses SetupMaster's inherited Menu class to build menu element connections. Passed arguments and table associations are
-predefined from __box__ imports.
+predefined from config imports.
 """
 
 # ## MENU TABLE ASSOCIATIONS

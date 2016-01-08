@@ -5,7 +5,7 @@ __version__ = 0.1
 
 """
 
-from ..__box__ import DIV_0
+from ..config import DIV_0
 # from ..data.sql import BACKENDS
 from ..loggers import onError, cLog
 from ..util import Path, broadcast

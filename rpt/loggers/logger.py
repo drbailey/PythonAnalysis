@@ -6,7 +6,7 @@ Logging handlers for package SQLite3 logging.
 All package logging style objects reside here.
 """
 
-from ..__box__ import MASTER_PATH, LOG_TABLE, LOG_FIELDS, LOG_TYPES, CRON_LOG_TABLE, CRON_LOG_FIELDS, CRON_LOG_TYPES
+from ..config import MASTER_PATH, LOG_TABLE, LOG_FIELDS, LOG_TYPES, CRON_LOG_TABLE, CRON_LOG_FIELDS, CRON_LOG_TYPES
 from ..util import Path
 from ..data.sql import BACKENDS, MASTER
 import datetime

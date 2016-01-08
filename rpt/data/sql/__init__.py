@@ -6,7 +6,7 @@ __init__ for sql package.
 Internal sql should not be passed outside of data package as these are not intended to be user facing.
 """
 
-from ...__box__ import SQL_CLEAN_LEVEL, MASTER_DB_NAME, MASTER_PATH, MASTER_TEXT_FACTORY
+from ...config import SQL_CLEAN_LEVEL, MASTER_DB_NAME, MASTER_PATH, MASTER_TEXT_FACTORY
 from sql_backends import SQLBackends
 from sql_util import is_db
 import sqlite3

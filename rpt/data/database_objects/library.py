@@ -5,7 +5,7 @@ __version__ = 0.1
 Manages groups of server connections.
 """
 
-from ...__box__ import MASTER_PATH, MASTER_TABLES
+from ...config import MASTER_PATH, MASTER_TABLES
 from ...util import broadcast, get_date
 from ..sql import BACKENDS
 from .root import Root

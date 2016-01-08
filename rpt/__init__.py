@@ -11,7 +11,7 @@ Reporting and Automation Package.
 from .data import (Library, Server, Database, Table, Index, Field, ExcelWriterV2, ExcelReader, SQLBackends, BACKENDS,
                    MASTER, MASTER_MEMORY)
 from .manager import backup_templates, backup_databases
-from .__box__ import VOLUME, VOLUME_DOCS
+from .config import VOLUME, VOLUME_DOCS
 from .distribution import Eml, rwc_file
 from .loggers import rLog, cLog
 from .setupm import SetupMaster

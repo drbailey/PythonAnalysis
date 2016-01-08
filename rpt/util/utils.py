@@ -12,7 +12,7 @@ Includes:
     Manual garbage collection.
 """
 
-from ..__box__ import SQL_RESERVED, SQL_REPLACE, DATE_FORMAT as dt_format, EXTENSION_PRIORITY, ENCODINGS
+from ..config import SQL_RESERVED, SQL_REPLACE, DATE_FORMAT as dt_format, EXTENSION_PRIORITY, ENCODINGS
 from .broadcast import broadcast
 import unicodedata
 import datetime

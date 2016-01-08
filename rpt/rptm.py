@@ -22,7 +22,7 @@ Can execute (but is not limited to) the following primary functions:
 """
 
 # from .loggers import onError
-from .__box__ import MASTER_PATH, VOLUME, DATE_LY_SQL, DATE_FOLDER_FORMAT, DIV_0, DATE_FORMAT_SHORT
+from .config import MASTER_PATH, VOLUME, DATE_LY_SQL, DATE_FOLDER_FORMAT, DIV_0, DATE_FORMAT_SHORT
 from .data import Library, Table, Parser, ExcelWriterV2, OutlookData, explicit_py_type, BACKENDS, MASTER
 from .util import Path, ambiguous_extension, collect_garbage, broadcast, get_date
 from .com import default_copy, default_range_to_image

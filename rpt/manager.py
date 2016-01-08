@@ -6,7 +6,7 @@ Master path file backup methods.
 """
 
 from .distribution import rwc_file
-from .__box__ import MASTER_PATH, BACKUP_PATH
+from .config import MASTER_PATH, BACKUP_PATH
 from .util import broadcast
 import os
 import re

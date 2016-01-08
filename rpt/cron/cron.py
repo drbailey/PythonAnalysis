@@ -5,7 +5,7 @@ __version__ = 0.2
 Runs tasks at scheduled times and updates task and task logs tables.
 """
 
-from ..__box__ import CRON_TABLE, MASTER_PATH, CRON_FIELDS
+from ..config import CRON_TABLE, MASTER_PATH, CRON_FIELDS
 from ..util import transform_string_date, Path
 from ..loggers import cLog
 from .crontools import CronTools, TaskWrapper

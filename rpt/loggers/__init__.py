@@ -3,7 +3,7 @@ __version__ = 1.1
 
 """
 Logging handler and predefined error functions __init__.
-Package loggers behave similarly to builtin loggers and pull setup parameters from __box__. Predefined errors should
+Package loggers behave similarly to builtin loggers and pull setup parameters from config. Predefined errors should
 use appropriate loggers but look the same to users.
 ex)
     onError(error, logger)

@@ -7,7 +7,7 @@ Outlook Com handling via win32com. Primarily used to extract data from Outlook's
 Uses regex filters to determine valid mail data_objects, can save attachments if criteria are met.
 """
 
-from ..__box__ import VOLUME
+from ..config import VOLUME
 from .mipl import properties, get
 from datetime import datetime
 from win32com import client
@@ -223,7 +223,7 @@ class ComOutlook():
     def pytime_to_datetime(pytime):
         """
         Converts a python 'pytime' object to a python 'datetime' object for module continuity all dates are datetimes or
-        formatted strings matching format in __box__.
+        formatted strings matching format in config.
         :param pytime: pytime object.
         :return: datetime object converted from input pytime object.
         """
