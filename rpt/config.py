@@ -8,7 +8,6 @@ Package wide variables.
 from .path import PATH, BACKUP_PATH
 import os
 
-
 __all__ = ['__author__',
            '__version__',
            'SQL_CLEAN_LEVEL',
@@ -40,6 +39,7 @@ __all__ = ['__author__',
            'VOLUME',
            'VOLUME_DOCS',
            ]
+
 
 VOLUME = 7  # 0 is print nothing, higher is printing more.
 VOLUME_DOCS = """
@@ -83,6 +83,19 @@ MAX_PRINT_COLUMNS = 20  # determine off shell width?
 
 
 # ## GLOBAL MASTER/SETTINGS DATABASE VARIABLES ###
+if not PATH:
+    import getpass
+    PATH = r"C:\Users\%s\Documents\RPT" % getpass.getuser()
+
+if not BACKUP_PATH:
+    BACKUP_PATH = PATH
+
+if not os.path.exists(PATH):
+    os.makedirs(PATH)
+
+if not os.path.exists(BACKUP_PATH):
+    os.makedirs(BACKUP_PATH)
+
 MASTER_PATH = PATH
 PACKAGE_PATH = os.path.dirname(os.path.realpath(__file__))
 

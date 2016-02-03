@@ -47,5 +47,3 @@ __all__ = ['__author__',
            'backup_databases',
            'task_setup',
            ]
-
-
