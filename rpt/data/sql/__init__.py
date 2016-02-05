@@ -7,7 +7,8 @@ Internal sql should not be passed outside of data package as these are not inten
 """
 
 from ...config import SQL_CLEAN_LEVEL, MASTER_DB_NAME, MASTER_PATH, MASTER_TEXT_FACTORY
-from sql_backends import SQLBackends
+from sql_backends import (SQLBackends, SQLiteBackends, ODBCBackends, MSSQLServerBackends, OracleBackends,
+                          TeradataBackends, IBMDB2Backends)
 from sql_util import is_db
 import sqlite3
 
@@ -15,6 +16,12 @@ import sqlite3
 __all__ = ['__author__',
            '__version__',
            'SQLBackends',
+           'SQLiteBackends',
+           'ODBCBackends',
+           'MSSQLServerBackends',
+           'OracleBackends',
+           'TeradataBackends',
+           'IBMDB2Backends'
            'is_db',
            'BACKENDS',
            'MASTER',
@@ -22,7 +29,7 @@ __all__ = ['__author__',
            ]
 
 # ## SQLBackends INSTANCE ###
-BACKENDS = SQLBackends()
+BACKENDS = SQLiteBackends()
 BACKENDS.clean_level = SQL_CLEAN_LEVEL
 
 # ## Master Connection ###

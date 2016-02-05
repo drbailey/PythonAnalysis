@@ -8,8 +8,9 @@ Reporting and Automation Package.
 
 """
 
-from .data import (Library, Server, Database, Table, Index, Field, ExcelWriterV2, ExcelReader, SQLBackends, BACKENDS,
-                   MASTER, MASTER_MEMORY)
+from .data import (Library, Server, Database, Table, Index, Field, ExcelWriterV2, ExcelReader, SQLBackends,
+                   SQLiteBackends, ODBCBackends, MSSQLServerBackends, OracleBackends, TeradataBackends, IBMDB2Backends,
+                   BACKENDS, MASTER, MASTER_MEMORY)
 from .manager import backup_templates, backup_databases
 from .config import VOLUME, VOLUME_DOCS
 from .distribution import Eml, rwc_file
@@ -32,6 +33,12 @@ __all__ = ['__author__',
            'Index',
            'Field',
            'SQLBackends',
+           'SQLiteBackends',
+           'ODBCBackends',
+           'MSSQLServerBackends',
+           'OracleBackends',
+           'TeradataBackends',
+           'IBMDB2Backends',
            'ExcelReader',
            'ExcelWriterV2',
            'Eml',

@@ -29,7 +29,7 @@ from config import (MASTER_TABLES,
                      PACKAGE_PATH,
                      DATE_FORMAT,
                      MASTER_DB_NAME)
-from .util import transform_string_date, clean, broadcast
+from .util import transform_string_date, clean, broadcast, Path
 from .setup import Config, Menu
 from .loggers import rLog, cLog
 from .setup import task_setup
@@ -111,46 +111,47 @@ class SetupMaster(Config, Menu):
         broadcast(msg=msg, clamor=0)
         for _table in MASTER_TABLES:
             while True:
-                if not is_db(database=MASTER_DB_NAME, table=_table):
-                    raw = clean(raw_input("Table %s was not found, would you like to run setup for this table "
-                                          "now?(Y/N)\n" % _table))
-                    if raw == 'y' and not cron:
-                        if _table == LOG_TABLE:
-                            # rl = RealLogger()
-                            self.__new_master(table=LOG_TABLE, fields=LOG_FIELDS,
-                                              values=None, types=LOG_TYPES, if_not=True)
-                        elif _table == CRON_LOG_TABLE:
-                            # cl = CronLogger()
-                            self.__new_master(table=CRON_LOG_TABLE, fields=CRON_LOG_FIELDS,
-                                              values=None, types=CRON_LOG_TYPES, if_not=True)
-                        elif _table == GLOBAL_TABLE:
-                            self.__new_master(table=GLOBAL_TABLE, fields=GLOBAL_FIELDS,
-                                              values=None, types=GLOBAL_TYPES, if_not=True)
-                            self.new_global()
-                            break
-                        elif _table == USER_TABLE:
-                            self.__new_master(table=USER_TABLE, fields=USER_FIELDS,
-                                              values=None, types=USER_TYPES, if_not=True)
-                            self.new_user()
-                            break
-                        elif _table == CONNECTION_TABLE:
-                            self.__new_master(table=CONNECTION_TABLE, fields=CONNECTION_FIELDS,
-                                              values=None, types=CONNECTION_TYPES, if_not=True)
-                            self.new_connection()
-                            break
-                        elif _table == CRON_TABLE:
-                            self.__new_master(table=CRON_TABLE, fields=CRON_FIELDS,
-                                              values=None, types=CRON_TYPES, if_not=True)
+                with Path(MASTER_PATH):
+                    if not is_db(database=MASTER_DB_NAME, table=_table):
+                        raw = clean(raw_input("Table %s was not found, would you like to run setup for this table "
+                                              "now?(Y/N)\n" % _table))
+                        if raw == 'y' and not cron:
+                            if _table == LOG_TABLE:
+                                # rl = RealLogger()
+                                self.__new_master(table=LOG_TABLE, fields=LOG_FIELDS,
+                                                  values=None, types=LOG_TYPES, if_not=True)
+                            elif _table == CRON_LOG_TABLE:
+                                # cl = CronLogger()
+                                self.__new_master(table=CRON_LOG_TABLE, fields=CRON_LOG_FIELDS,
+                                                  values=None, types=CRON_LOG_TYPES, if_not=True)
+                            elif _table == GLOBAL_TABLE:
+                                self.__new_master(table=GLOBAL_TABLE, fields=GLOBAL_FIELDS,
+                                                  values=None, types=GLOBAL_TYPES, if_not=True)
+                                self.new_global()
+                                break
+                            elif _table == USER_TABLE:
+                                self.__new_master(table=USER_TABLE, fields=USER_FIELDS,
+                                                  values=None, types=USER_TYPES, if_not=True)
+                                self.new_user()
+                                break
+                            elif _table == CONNECTION_TABLE:
+                                self.__new_master(table=CONNECTION_TABLE, fields=CONNECTION_FIELDS,
+                                                  values=None, types=CONNECTION_TYPES, if_not=True)
+                                self.new_connection()
+                                break
+                            elif _table == CRON_TABLE:
+                                self.__new_master(table=CRON_TABLE, fields=CRON_FIELDS,
+                                                  values=None, types=CRON_TYPES, if_not=True)
+                                break
+                            else:
+                                print "%s not anticipated as a master table." % _table
+                        elif raw == 'n':
+                            print "Table %s not setup successfully. \nSetup aborted." % _table
                             break
                         else:
-                            print "%s not anticipated as a master table." % _table
-                    elif raw == 'n':
-                        print "Table %s not setup successfully. \nSetup aborted." % _table
-                        break
+                            print "Invalid Input."
                     else:
-                        print "Invalid Input."
-                else:
-                    break
+                        break
 
     # ## NEW FUNCTIONS ###
     def new_user(self):
@@ -345,9 +346,9 @@ class SetupMaster(Config, Menu):
             else:
                 yn = clean(raw_input("No connection could be made to %s. Would you like to try again? (Y/N)\n" % raw),
                            lower=False, sql=False, length_limit=False)
-                if yn == 'y':
+                if yn.lower() == 'y':
                     pass
-                elif yn == 'n':
+                elif yn.lower() == 'n':
                     return raw
                 else:
                     print "Invalid input."

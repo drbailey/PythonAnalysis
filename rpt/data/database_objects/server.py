@@ -8,7 +8,8 @@ The server object acts as a database server connection object. It is designed to
 
 from ...config import MASTER_PATH, MASTER_DB_NAME, MASTER_TABLES
 from ...util import broadcast
-from ..sql import BACKENDS, MASTER_MEMORY, MASTER
+from ..sql import (SQLiteBackends, ODBCBackends, TeradataBackends, IBMDB2Backends, MSSQLServerBackends, OracleBackends,
+                   BACKENDS, MASTER_MEMORY, MASTER)
 from .root import Root
 from .table import Table
 from .database import Database
@@ -22,6 +23,11 @@ MASTER_MEMORY_STRINGS = ['master_memory', 'master memory', ]
 LOCAL_STRINGS = ['local', ':local:', ]
 MEMORY_STRINGS = ['memory', 'mem', ':memory:', 'temp', 'temporary', 'lite', 'sqlite', 'sqlite3', ]
 PYODBC_STRINGS = ['external', 'odbc', 'pyodbc', ]
+TERADATA_STRINGS = []
+IBMDB2_STRINGS = []
+MSSQLSERVER_STRINGS = []
+ORACLE_STRINGS = ['oracle']
+
 # WORKING_STRINGS = ['working', 'workspace', 'work']
 
 
@@ -40,6 +46,7 @@ class Server(Root):
                       2: ('sqlite3', sqlite3, MEMORY_STRINGS, ':memory:'),
                       3: ('sqlite3', sqlite3, LOCAL_STRINGS, None),
                       5: ('pyodbc', pyodbc, PYODBC_STRINGS, None),
+                      6: ('oracle', pyodbc, ORACLE_STRINGS, None),  # TODO: change to oracle connection package.
                       }
     _text_factory = str
     detect_types = sqlite3.PARSE_COLNAMES
@@ -55,6 +62,10 @@ class Server(Root):
         self.engine = kwargs.get('engine', None)  # package used to connect
         self.user_name = kwargs.get('user_name', '')
         self.path = kwargs.get('path', os.getcwd())
+        self.backends = None
+        backends = kwargs.get('backends', None)
+        if backends:
+            self.backends = backends()
 
         if ctype:
             self.connect(ctype)
@@ -76,6 +87,7 @@ class Server(Root):
         self.crs.close()
         self.con.close()
 
+    # TODO: Use backends object?
     @property
     def description(self):
         try:
@@ -116,6 +128,8 @@ class Server(Root):
             self.__load_connection(3, LOCAL_STRINGS[0])
         elif ctype.lower() in PYODBC_STRINGS:
             self.__load_connection(5)
+        elif ctype.lower() in ORACLE_STRINGS:
+            self.__load_connection(6)
         elif ctype.lower().endswith('.db'):
             self.__load_connection(3, ctype)
         else:
@@ -124,8 +138,16 @@ class Server(Root):
 
         if self.is_lite():
             self.engine = sqlite3
+            if not self.backends:
+                self.backends = SQLiteBackends()
         elif self.is_odbc():
             self.engine = pyodbc
+            if not self.backends:
+                self.backends = ODBCBackends()
+        # elif self.is_oracle():
+        #     self.engine = oracle_engine
+        #     if not self.backends:
+        #         self.backends = OracleBackends()
 
     def __load_connection(self, index, other=None):
         source, engine, all_str, con_str = self.connection_key[index]
@@ -208,11 +230,11 @@ class Server(Root):
             self.crs = None
 
     def move_file(self, path):
-        pass
+        raise NotImplementedError()
 
     # only methods that modify a database should use db_ prefix.
     def get_table_names(self):
-        return BACKENDS.get_lite_table_names(connect=self.c)
+        return self.backends.get_table_names(connect=self.c)
 
     def db_pass_sql(self, sql, values=None):
         """
@@ -221,15 +243,15 @@ class Server(Root):
         :param values:
         :return:
         """
-        return BACKENDS.pass_sql(connect=self.c, sql=sql, values=values)
+        return self.backends.pass_sql(connect=self.c, sql=sql, values=values)
 
-    def db_drop_all(self, protected=True):
+    def db_drop_all(self, protected=True):  # lite only, protects from horrible crushing drop all
         if self.is_lite():
             tables = self.get_table_names()
             for table in tables:
                 if protected and table in MASTER_TABLES:
                     continue
-                BACKENDS.drop_table(connect=self.c, table=table)
+                self.backends.drop_table(connect=self.c, table=table)
             self.db_vacuum()
 
     def _db_drop_protected(self):
@@ -237,7 +259,7 @@ class Server(Root):
             tables = self.get_table_names()
             for table in tables:
                 if table in MASTER_TABLES:
-                    BACKENDS.drop_table(connect=self.c, table=table)
+                    self.backends.drop_table(connect=self.c, table=table)
             self.db_vacuum()
 
     def _db_write_protected(self):
@@ -245,7 +267,7 @@ class Server(Root):
             pass
 
     def db_vacuum(self):
-        BACKENDS.vacuum(connect=self.c)
+        self.backends.vacuum(connect=self.c)
 
     def db_combine(self, other):
         """
@@ -272,7 +294,7 @@ class Server(Root):
         """
 
         Makes a shelf table from a select on a single database table. Essentially a subset.
-        :param table: Table name.
+        :param table_name: Table name.
         :param fields: List of field names to select.
         :param where: list of tuples containing (field, value) pairs, where field = value. [(field, value),]
         :param no_case: A parameter that removes case comparison from sqlite queries, does not work on most ODBC
@@ -291,4 +313,4 @@ class Server(Root):
     # TODO: test this.
     def db_drop_before(self, table_name, field_name, date):
         sql = 'DELETE FROM %s WHERE %s < ?;' % (table_name, field_name)
-        BACKENDS.pass_sql(connect=self.c, sql=sql, values=[date])
+        self.backends.pass_sql(connect=self.c, sql=sql, values=[date])

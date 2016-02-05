@@ -14,7 +14,8 @@ This module should boil sources and merging down to similar user facing function
 
 from .database_objects import (Library, Server, Database, Table, Index, Field)
 from .data_objects import (ExcelWriterV2, ExcelReader, explicit_py_type)
-from .sql import SQLBackends, BACKENDS, MASTER_MEMORY, MASTER
+from .sql import (SQLBackends, SQLiteBackends, ODBCBackends, MSSQLServerBackends, OracleBackends, TeradataBackends,
+                  IBMDB2Backends, BACKENDS, MASTER_MEMORY, MASTER)
 from .outlookdata import OutlookData
 from .exceldata import ExcelData
 from .filedata import FileData
@@ -38,6 +39,12 @@ __all__ = ['__author__',
            'FileData',
            'NetData',
            'SQLBackends',
+           'SQLiteBackends',
+           'ODBCBackends',
+           'MSSQLServerBackends',
+           'OracleBackends',
+           'TeradataBackends',
+           'IBMDB2Backends'
            'Parser',
            'BACKENDS',
            'MASTER_MEMORY',
