@@ -293,11 +293,11 @@ class Server(Root):
     def select(self, table_name, fields=None, where=None, no_case=False, name='', **kwargs):
         """
 
-        Makes a shelf table from a select on a single database table. Essentially a subset.
+        Makes a table from a select on a single database table. Essentially a subset.
         :param table_name: Table name.
         :param fields: List of field names to select.
         :param where: list of tuples containing (field, value) pairs, where field = value. [(field, value),]
-        :param no_case: A parameter that removes case comparison from sqlite queries, does not work on most ODBC
+        :param no_case: A parameter that removes case comparison from SQLite queries, does not work on most ODBC
             connections.
         :param kwargs:
         :return:

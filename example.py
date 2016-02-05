@@ -28,6 +28,10 @@ print f1
 
 t1.append(f1)
 print t1
-t1.to_csv()
+##t1.to_csv()
 print t1.note
-t1.to_excel()
+##t1.to_excel()
+
+sm = rpt.SetupMaster()
+sm.menu()
+

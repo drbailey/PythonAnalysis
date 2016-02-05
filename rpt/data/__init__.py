@@ -44,7 +44,7 @@ __all__ = ['__author__',
            'MSSQLServerBackends',
            'OracleBackends',
            'TeradataBackends',
-           'IBMDB2Backends'
+           'IBMDB2Backends',
            'Parser',
            'BACKENDS',
            'MASTER_MEMORY',

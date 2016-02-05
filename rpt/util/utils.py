@@ -16,6 +16,7 @@ from ..config import SQL_RESERVED, SQL_REPLACE, DATE_FORMAT as dt_format, EXTENS
 from .broadcast import broadcast
 import unicodedata
 import datetime
+import shutil
 import copy
 import sys
 import os
@@ -349,6 +350,34 @@ def extension_from_index(index):
     extension += name_extension_order[index]
     return extension
 
+# def os_walk(path=r'.', pattern=r'.txt'):
+#     """
+#     Walks a path and returns file names matching a pattern.
+#     (copies, not completely modified, was to be used for systematic importing of all py files sharing a directory.)
+#     ex: testing master file.)
+#     :param path: path to walk
+#     :param pattern: something in a filename to match, uses regex patterns (or simple text match)
+#     :return:
+#     """
+#     # something in a filename to match, uses regex patterns (or simple text match)
+#     pattern = '.txt'
+#     # path to copy files to
+#     path = r'C:/gathered_files'
+#
+#     # make destination if it doesn't exist
+#     if not os.path.exists(path):
+#         os.makedirs(path)
+#
+#     for root, dirs, files in os.walk(os.getcwd()):
+#         print 'root: ', root
+#         print 'directories: ', dirs
+#         print 'files: ', files
+#         for f in files:
+#             # regex match object, if the match exists it will have a .group() contaning the full file name
+#             m = re.search(pattern, f)
+#             if m:
+#                 # move file, if you want more properties moved (change date and stuff) use .copy2(m.group(), path)
+#                 shutil.copy(root+'\\'+f, path)
 
 ### UNFINISHED TO TYPE CLASS
 # class ToType():
