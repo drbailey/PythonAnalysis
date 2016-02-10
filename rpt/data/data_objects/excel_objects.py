@@ -37,6 +37,11 @@ class ExcelReader(Reader):
         data = []
         for row_index in range(ws.nrows)[row_start:row_end+1]:
             data_row = ws.row_values(row_index)[col_start:col_end+1]
+            row_types = ws.row_types(row_index)[col_start:col_end+1]
+            if 3 in row_types:
+                for i, t in enumerate(row_types):
+                    if t == 3:
+                        data_row[i] = xlrd.xldate.xldate_as_datetime(xldate=data_row[i], datemode=wb.datemode)
             data.append(data_row)
         return data
 

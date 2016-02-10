@@ -21,7 +21,7 @@ __all__ = ['__author__',
            'MSSQLServerBackends',
            'OracleBackends',
            'TeradataBackends',
-           'IBMDB2Backends'
+           'IBMDB2Backends',
            'is_db',
            'BACKENDS',
            'MASTER',

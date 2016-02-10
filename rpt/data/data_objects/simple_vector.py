@@ -262,7 +262,7 @@ class SimpleVector(list):
         if upc:
             upc_ = str(int(upc)).strip()
             diff = (n-1)-len(upc_)
-            upc_= '0' * diff + upc_
+            upc_ = '0' * diff + upc_
             odd, even = 0, 0
             for i, digit in enumerate(upc_):
                 if (i+1) % 2 == 0:
