@@ -73,10 +73,11 @@ class Table(Root):
         return cls(data, name=sheet_name, header=header, **kwargs)
 
     @classmethod
-    def from_select(cls, connect, table_name, fields=None, where=None, no_case=False, name='', **kwargs):
+    def from_select(cls, connect, table_name, schema=None, fields=None, where=None, no_case=False, name='', **kwargs):
         """
         Makes a shelf table from a select on a single database table. Essentially a subset.
-        :param database: A database containing the table selecting from.
+        :param connect:
+        :param schema: A database containing the table selecting from.
             Can be moved once initialized.
         :param table_name: Table name to select.
         :param fields: List of field names to select.
@@ -84,8 +85,22 @@ class Table(Root):
         :param no_case: A parameter that removes case comparison from sqlite queries, does not work on most ODBC
             connections.
         """
-        sql, values = BACKENDS.generate_select_sql(table=table_name, fields=fields, where=where, nocase_compare=no_case)
-        data = BACKENDS.select(connect=connect, table=table_name, fields=fields, where=where, nocase_compare=no_case)
+        # if not schema try to get parent?
+        sql, values = BACKENDS.generate_select_sql(
+            table=table_name,
+            schema=schema,
+            fields=fields,
+            where=where,
+            nocase_compare=no_case
+        )
+        data = BACKENDS.select(
+            connect=connect,
+            table=table_name,
+            schema=schema,
+            fields=fields,
+            where=where,
+            nocase_compare=no_case
+        )
         header = BACKENDS.header(connect=connect)
         types = BACKENDS.types(connect=connect)
         if not name:
@@ -102,9 +117,14 @@ class Table(Root):
         :param sql: SQL to execute, expected to be a select statement.
         :param values: May include values for ? replacements.
         """
-        data = BACKENDS.pass_sql(connect=connect, sql=sql, values=values)
-        header = BACKENDS.header(connect=connect)
-        types = BACKENDS.types(connect=connect)
+        # TODO: What is the best solution for establishing backends pre-init? cls method in Root?
+        if kwargs.get('backends'):
+            backends = kwargs.get('backends')()
+        else:
+            backends = BACKENDS
+        data = backends.pass_sql(connect=connect, sql=sql, values=values)
+        header = backends.header(connect=connect)
+        types = backends.types(connect=connect)
         return cls(children=data, name=name, header=header, types=types, note=sql, note_extra=values, **kwargs)
 
     def __init__(self, children=(), name='', parent=None, header=(), indices=(), **kwargs):

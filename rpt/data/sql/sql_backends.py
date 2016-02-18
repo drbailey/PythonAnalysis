@@ -44,6 +44,7 @@ class SQLBackends(object):
     detect_types = PARSE_COLNAMES
 
     clean_level = 1
+    explicit_naming = True  # create table is always explicit on fields
 
     def __init__(self):
         pass
@@ -56,6 +57,23 @@ class SQLBackends(object):
 
     def _not_implemented(self):
         raise NotImplementedError(NOT_IMPLEMENTED_TEXT % self.__class__)
+
+    def _process_table(self, table, schema=None):
+        table = clean(raw=table, sql=self.clean_level)
+        table = table.replace(' ', '_')
+        if schema:
+            schema = clean(raw=schema, sql=self.clean_level)
+            schema = schema.replace(' ', '_')
+            if self.explicit_naming:
+                table = '"%s"."%s"' % (schema, table)
+            else:
+                table = '%s.%s' % (schema, table)
+        else:
+            if self.explicit_naming:
+                table = '"%s"' % table
+            else:
+                table = '%s' % table
+        return table
 
     # ## INFORMATION QUERIES ###
     @staticmethod
@@ -132,7 +150,7 @@ class SQLBackends(object):
 
     # ## TABLE SELECTION ###
 
-    def select(self, connect, table, fields=None, where=None, nocase_compare=False):
+    def select(self, connect, table, schema=None, fields=None, where=None, nocase_compare=False):
         """
         Selects table data.
         :param connect:
@@ -143,24 +161,26 @@ class SQLBackends(object):
         :return:
         """
         con, crs = connect
-        sql, vals = self.generate_select_sql(table=table, fields=fields, where=where, nocase_compare=nocase_compare)
+        sql, vals = self.generate_select_sql(table=table, schema=schema, fields=fields, where=where, nocase_compare=nocase_compare)
         broadcast(msg=sql, clamor=7)
+        # print sql
         if vals:
             rtrn = crs.execute(sql, vals).fetchall()
         else:
             rtrn = crs.execute(sql).fetchall()
         return rtrn
 
-    def generate_select_sql(self, table, fields, where, nocase_compare):
+    def generate_select_sql(self, table, schema, fields, where, nocase_compare):
         """
 
         :param table:
+        :param schema:
         :param fields:
         :param where:
         :param nocase_compare:
         :return:
         """
-        table = clean(raw=table, sql=self.clean_level)
+        table = self._process_table(table=table, schema=schema)
         sql = '''SELECT '''
         if fields:
             for field in fields:
@@ -193,6 +213,7 @@ class SQLBackends(object):
             rtrn = crs.execute(sql, values).fetchall()
         else:
             broadcast(msg=sql, clamor=7)
+            print sql
             rtrn = crs.execute(sql).fetchall()
         if not rtrn:
             con.commit()
@@ -217,24 +238,25 @@ class SQLBackends(object):
     # ## TABLE MANAGEMENT ###
 
     # # CREATE ##
-    def create_table(self, connect, table, fields, data_types=None, if_not=True):
+    def create_table(self, connect, table, fields, schema=None, data_types=None, if_not=True):
         """
 
         :param connect:
         :param table:
         :param fields:
+        :param schema:
         :param data_types:
         :param if_not:
         :return:
         """
         con, crs = connect
-        table = clean(raw=table, sql=self.clean_level)
-        table = table.replace(' ', '_')
+        table = self._process_table(table=table, schema=schema)
+
         fields = ', '.join(self._generate_write_fields(fields=fields, data_types=data_types))
         if if_not:
-            sql = """CREATE TABLE IF NOT EXISTS "%s"(%s);"""
+            sql = """CREATE TABLE IF NOT EXISTS %s(%s);"""
         else:
-            sql = """CREATE TABLE "%s"(%s);"""
+            sql = """CREATE TABLE %s(%s);"""
         # print 'from SQLBackends.create_table'
         # print sql % (table, fields)
         crs.execute(sql % (table, fields))
@@ -318,8 +340,10 @@ class SQLBackends(object):
         con, crs = connect
         table = clean(raw=table, sql=self.clean_level)
         flds, vals = zip(*where)
-        flds = ' = ? AND '.join([clean(raw=fld, sql=self.clean_level) for fld in flds])
+        flds = ' = ? AND '.join(self._generate_fields(fields=flds))
         sql = 'DELETE FROM %s WHERE %s = ?' % (table, flds)
+        print sql
+        print vals
         crs.execute(sql, vals)
         con.commit()
         broadcast(msg='Rows dropped from %s, SQL: %s' % (table, sql), clamor=9)
@@ -332,27 +356,29 @@ class SQLBackends(object):
 
     def insert_field(self, connect, table, field, data_type=None, default=None):
         con, crs = connect
-        table = clean(raw=table, sql=self.clean_level)
-        table = table.replace(' ', '_')
+        table = self._process_table(table=table)
         field = self._generate_write_field(field=field, data_type=data_type)
         sql = "ALTER TABLE %s ADD %s DEFAULT %s;" % (table, field, default)
         crs.execute(sql)
         con.commit()
         broadcast(msg='Field added to %s, SQL: %s' % (table, sql), clamor=9)
 
-    def insert_rows(self, connect, table, rows, fields=None, exceptions=()):
+    def insert_rows(self, connect, table, rows, fields=None, schema=None, exceptions=()):
         con, crs = connect
-        table = clean(raw=table, sql=self.clean_level)
-        table = table.replace(' ', '_')
+        table = self._process_table(table=table, schema=schema)
+
         values_sql = ','.join(['?' for x in range(len(rows[0]))])
         if fields:
-            sql = "INSERT INTO %s (%s) VALUES(%s);" % (table, ', '.join([str(x) for x in fields]), values_sql)
+            sql = "INSERT INTO %s (%s) VALUES(%s);" % \
+                  (table, ', '.join(self._generate_fields(fields=fields)), values_sql)
         else:
             sql = "INSERT INTO %s VALUES(%s);" % (table, values_sql)
 
         # TODO: better way of allowing pytypes in tables but converting on write? check columns that don't type well?
         e = (sqlite3InterfaceError, pyodbcInterfaceError) + exceptions
         try:
+            # print sql
+            # print rows
             crs.executemany(sql, rows)
         except e:
             for row in rows:
@@ -371,34 +397,34 @@ class SQLBackends(object):
         con.commit()
         broadcast(msg='**Rows inserted into %s**\n SQL:\n%s' % (table, sql), clamor=9)
 
-    def alter_values(self, connect, table, where, sets=None):
+    def alter_values(self, connect, table, where, sets=None, schema=None):
         # make safe
         con, crs = connect
-        table = clean(raw=table, sql=self.clean_level)
-        table = table.replace(' ', '_')
+        table = self._process_table(table=table, schema=schema)
         if not sets:
             sets = where  # TODO: so... it does nothing if sets = where
         set_fields, set_values = zip(*sets)
         check_fields, check_values = zip(*where)
-        sets_sql = ' = ? AND '.join(set_fields)
-        checks_sql = ' = ? AND '.join(check_fields)
+        sets_sql = ' = ? AND '.join(self._generate_fields(fields=set_fields))
+        checks_sql = ' = ? AND '.join(self._generate_fields(fields=check_fields))
         sql = 'UPDATE %s SET %s = ? WHERE %s = ?;' % (table, sets_sql, checks_sql)
-        crs.execute(sql, list(set_values)+list(check_values))
-        broadcast(msg='Rows dropped from %s, SQL: %s' % (table, sql), clamor=9)
-        self.reindex(connect=connect, table=table)
+        crs.execute(sql, tuple(list(set_values)+list(check_values)))
+        con.commit()
+        broadcast(msg='Values updated in table %s, SQL: %s' % (table, sql), clamor=9)  # TODO: not correct log message.
+        # self.reindex(connect=connect, table=table)
 
-    def reindex(self, connect, table):
+    def reindex(self, connect, table, schema=None):
         con, crs = connect
-        table = clean(raw=table, sql=self.clean_level)
-        sql = 'REINDEX %s' % table
+        table = self._process_table(table=table, schema=schema)
+        sql = 'REINDEX %s;' % table
         crs.execute(sql)
         con.commit()
 
     def rename_table(self, connect, old, new):
         # make safe
         con, crs = connect
-        old = clean(raw=old, sql=self.clean_level)
-        new = clean(raw=new, sql=self.clean_level)
+        old = self._process_table(table=old)
+        new = self._process_table(table=new)
         sql = 'ALTER TABLE %s RENAME TO %s' % (old, new)
         crs.execute(sql)
         con.commit()
@@ -488,6 +514,15 @@ class SQLBackends(object):
             return '"'+str(field)+'" ['+str(entry[0])+']'+' '+' '.join(entry[1:])
         return '"'+str(field)+'"'
 
+    def _generate_fields(self, fields):
+        new_fields = []
+        for field in fields:
+            field = clean(raw=field, sql=self.clean_level)
+            if self.explicit_naming:
+                new_fields.append('"'+str(field)+'"')
+            else:
+                new_fields.append(str(field))
+        return new_fields
     # def attach(self, connect, other):
     #     sql = "ATTACH DATABASE 'NEW.db' AS 'NEW'"
     #
@@ -827,10 +862,20 @@ FROM %(table1)s
         self.drop_table(connect=connect, table=table+'_temp')
         con.commit()
 
+    def alter_values(self, connect, table, where, sets=None, schema=None):
+        super(SQLiteBackends, self).alter_values(connect=connect, table=table, where=where, sets=sets, schema=schema)
+        self.reindex(connect=connect, table=table)
 
 class ODBCBackends(SQLBackends):
     def __init__(self):
         super(ODBCBackends, self).__init__()
+
+    def _generate_write_field(self, field, data_type=None):
+        field = clean(raw=field, sql=self.clean_level)
+        if data_type:
+            entry = data_type.split()
+            return '"'+str(field)+'" '+str(entry[0])+''+' '+' '.join(entry[1:])
+        return '"'+str(field)+'"'
 
     # tested
     def get_tables(self, connect, schema=None, table_type=None):
@@ -1076,3 +1121,27 @@ class MSSQLServerBackends(ODBCBackends):
 class OracleBackends(ODBCBackends):
     def __init__(self):
         super(OracleBackends, self).__init__()
+
+    def create_table(self, connect, table, fields, schema=None, data_types=None, if_not=True):
+        try:
+            super(OracleBackends, self).create_table(
+                connect=connect,
+                table=table,
+                fields=fields,
+                schema=schema,
+                data_types=data_types,
+                if_not=False)
+        except Exception, e:
+            if if_not and e.args == ('HY000', '[HY000] [Oracle][ODBC][Ora]ORA-00955: name is already used by an existing object\n (955) (SQLExecDirectW)'):
+                pass
+            else:
+                raise e
+    def _generate_fields(self, fields):
+        new_fields = []
+        for field in fields:
+            field = clean(raw=field, sql=self.clean_level)
+            if field.lower() == 'rownum':
+                new_fields.append(str(field))
+            else:
+                new_fields.append('"'+str(field)+'"')
+        return new_fields

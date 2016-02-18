@@ -15,7 +15,7 @@ import smtplib
 import os
 
 
-class Eml():
+class Eml(object):
     """
     Eml class uses email and smtplib packages to format email messages to users using smtp server.
 
@@ -159,6 +159,9 @@ class Eml():
         Logs sender, recipient, and attachment.
         """
         session = smtplib.SMTP(self.SMTP_SERVER, self.SMTP_PORT)
+        # the smtplib error is not very descriptive: "SMTPServerDisconnected: please run connect() first"
+        if not self.SMTP_SERVER:
+            raise smtplib.SMTPConnectError(code='', msg="No SMTP Server provided.")
         # allows for password on smtp
         if self.password:
             session.ehlo()

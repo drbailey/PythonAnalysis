@@ -62,10 +62,6 @@ class Server(Root):
         self.engine = kwargs.get('engine', None)  # package used to connect
         self.user_name = kwargs.get('user_name', '')
         self.path = kwargs.get('path', os.getcwd())
-        self.backends = None
-        backends = kwargs.get('backends', None)
-        if backends:
-            self.backends = backends()
 
         if ctype:
             self.connect(ctype)
@@ -145,7 +141,7 @@ class Server(Root):
             if not self.backends:
                 self.backends = ODBCBackends()
         # elif self.is_oracle():
-        #     self.engine = oracle_engine
+        #     self.engine = pyodbc
         #     if not self.backends:
         #         self.backends = OracleBackends()
 
@@ -290,20 +286,31 @@ class Server(Root):
             return True
         return False
 
-    def select(self, table_name, fields=None, where=None, no_case=False, name='', **kwargs):
+    def select(self, table_name, schema=None, fields=None, where=None, no_case=False, name='', **kwargs):
         """
 
         Makes a table from a select on a single database table. Essentially a subset.
         :param table_name: Table name.
+        :param schema:
         :param fields: List of field names to select.
         :param where: list of tuples containing (field, value) pairs, where field = value. [(field, value),]
         :param no_case: A parameter that removes case comparison from SQLite queries, does not work on most ODBC
             connections.
+        :param name:
         :param kwargs:
         :return:
         """
-        self.append(Table.from_select(self.c, table_name=table_name, fields=fields, where=where,
-                                      no_case=no_case, name=name, parent=self, kwargs=kwargs))
+        self.append(Table.from_select(
+            self.c,
+            table_name=table_name,
+            schema=schema,
+            fields=fields,
+            where=where,
+            no_case=no_case,
+            name=name,
+            parent=self,
+            kwargs=kwargs
+        ))
 
     # TODO: implement this.
     def db_drop_all_before(self):

@@ -5,6 +5,7 @@ __version__ = 0.1
 
 """
 
+
 from ...util import clean, broadcast
 from ...config import (
     DIV_0,
@@ -17,6 +18,7 @@ from ...config import (
     MAX_PRINT_COLUMNS,
     MAX_PRINT_ROWS,
     )
+from ..sql import BACKENDS
 import copy
 import sqlite3
 import pyodbc
@@ -43,6 +45,8 @@ class Root(list):
     max_print_columns = MAX_PRINT_COLUMNS
     max_print_rows = MAX_PRINT_ROWS
 
+    database_explicit = True  # sets explicit naming in backends objects
+
     def __init__(self, children=(), name='', **kwargs):
         self._reserved = []
         self._name = name
@@ -66,6 +70,16 @@ class Root(list):
             pass
 
         # print self._name+' initialized. (Msg from Root.__init__)'
+        self.backends = None
+        backends = kwargs.get('backends', None)
+        if backends:
+            self.backends = backends()
+        elif self.parent:
+            self.backends = self.parent.backends
+        else:
+            self.backends = BACKENDS
+
+        self.backends.explicit_naming = self.database_explicit
 
     @staticmethod
     def _get_default_name(cls):
@@ -398,6 +412,11 @@ class Root(list):
                 try:
                     self[-1].parent = self
                 except TypeError:
+                    pass
+            if hasattr(self[-1], 'backends'):
+                try:
+                    self[-1].backends = self.backends
+                except AttributeError:
                     pass
         else:
             raise TypeError(CHILD_TYPE_ERROR % (p_object.__class__.__name__,
