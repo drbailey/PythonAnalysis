@@ -213,7 +213,7 @@ class SQLBackends(object):
             rtrn = crs.execute(sql, values).fetchall()
         else:
             broadcast(msg=sql, clamor=7)
-            print sql
+            # print sql
             rtrn = crs.execute(sql).fetchall()
         if not rtrn:
             con.commit()
@@ -342,8 +342,8 @@ class SQLBackends(object):
         flds, vals = zip(*where)
         flds = ' = ? AND '.join(self._generate_fields(fields=flds))
         sql = 'DELETE FROM %s WHERE %s = ?' % (table, flds)
-        print sql
-        print vals
+        # print sql
+        # print vals
         crs.execute(sql, vals)
         con.commit()
         broadcast(msg='Rows dropped from %s, SQL: %s' % (table, sql), clamor=9)

@@ -222,6 +222,9 @@ class Table(Root):
             return zip(*self)
         return map(None, *self)
 
+    def row(self, index):
+        return tuple(child[index] for child in self)
+
     def iter_rows(self):
         # in python 3.x use: list(itertools.izip_longest(*self))
         if len(set([len(child) for child in self])) <= 1:
@@ -317,7 +320,7 @@ class Table(Root):
         """
         accepts a list tuples containing columns and value conditions as strings
             ex) conditions=[(0, "< 13"), (8, "=='hawaii'")]
-        :param conditions: [(0, evaluation to apply as string),]
+        :param conditions: [(column_index, evaluation to apply as string),]
         :return: None
         """
         conditions_ = []
@@ -705,3 +708,9 @@ class Table(Root):
         del self['sort_index_field']
         for index in range(len(self)):
             self[index][:] = [self[index][i] for i in sorted_indices]
+
+    def select(self, sql, values=None, **kwargs):
+        self.db_write(connect=MASTER_MEMORY, name=self.name, if_not=False)
+        t = Table.from_sql(connect=MASTER_MEMORY, sql=sql, values=values, name=kwargs.get('name', self.name), **kwargs)
+        self.db_drop(connect=MASTER_MEMORY)
+        return t
