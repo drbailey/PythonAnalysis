@@ -11,7 +11,7 @@ Reporting and Automation Package.
 from .data import (Library, Server, Database, Table, Index, Field, ExcelWriterV2, ExcelReader, SQLBackends,
                    SQLiteBackends, ODBCBackends, MSSQLServerBackends, OracleBackends, TeradataBackends, IBMDB2Backends,
                    BACKENDS, MASTER, MASTER_MEMORY)
-from .manager import backup_templates, backup_databases
+from .manager import backup_templates, backup_databases, drop_temp_tables
 from .config import VOLUME, VOLUME_DOCS
 from .distribution import Eml, rwc_file
 from .loggers import rLog, cLog
@@ -52,5 +52,6 @@ __all__ = ['__author__',
            'cLog',
            'backup_templates',
            'backup_databases',
+           'drop_temp_tables',
            'task_setup',
            ]

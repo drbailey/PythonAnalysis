@@ -6,12 +6,14 @@ __version__ = 0.1
 """
 
 from ...util import make_names_unique, broadcast
+from ..data_objects.simple_types import SimpleDATETIME
 from ..data_objects import ExcelReader, ExcelWriterV2
-from ..sql import BACKENDS, MASTER_MEMORY
+from ..sql import BACKENDS, MASTER_MEMORY, MASTER
 from .root import Root, check_parent
 from .index import Index
 from .field import Field
 import datetime  # used for drop_where eval
+import sqlite3
 import csv
 
 
@@ -86,26 +88,30 @@ class Table(Root):
             connections.
         """
         # if not schema try to get parent?
-        sql, values = BACKENDS.generate_select_sql(
+        if kwargs.get('backends'):
+            backends = kwargs.get('backends')
+        else:
+            backends = BACKENDS
+        sql, values = backends.generate_select_sql(
             table=table_name,
             schema=schema,
             fields=fields,
             where=where,
-            nocase_compare=no_case
+            # nocase_compare=no_case
         )
-        data = BACKENDS.select(
+        data = backends.select(
             connect=connect,
             table=table_name,
             schema=schema,
             fields=fields,
             where=where,
-            nocase_compare=no_case
+            # nocase_compare=no_case
         )
-        header = BACKENDS.header(connect=connect)
-        types = BACKENDS.types(connect=connect)
+        header = backends.header(connect=connect)
+        types = backends.types(connect=connect, table=table_name)[:len(header)]
         if not name:
             name = table_name+'_subset'
-        return cls(children=data, name=name, header=header, types=types, note=sql, note_extra=values, **kwargs)
+        return cls(children=data, name=name, header=header, known_types=types, note=sql, note_extra=values, **kwargs)
 
     @classmethod
     def from_sql(cls, connect, sql, name='', values=None, **kwargs):
@@ -119,13 +125,22 @@ class Table(Root):
         """
         # TODO: What is the best solution for establishing backends pre-init? cls method in Root?
         if kwargs.get('backends'):
-            backends = kwargs.get('backends')()
+            backends = kwargs.get('backends')
         else:
             backends = BACKENDS
         data = backends.pass_sql(connect=connect, sql=sql, values=values)
         header = backends.header(connect=connect)
+        # table = kwargs.get('table')
+        # if not table:
+        #     table = name
+        # if 'join' not in sql:
+        #     types = backends.types(connect=connect, table=table)[:len(header)]
         types = backends.types(connect=connect)
-        return cls(children=data, name=name, header=header, types=types, note=sql, note_extra=values, **kwargs)
+        # for h, t in zip(header, types):
+        #     print '%20s %s' % (h, t)
+        # print types
+        # print len(header), len(types)
+        return cls(children=data, name=name, header=header, known_types=types, note=sql, note_extra=values, **kwargs)
 
     def __init__(self, children=(), name='', parent=None, header=(), indices=(), **kwargs):
         self._indices = []
@@ -155,6 +170,9 @@ class Table(Root):
 
         # load indices
         self.indices = indices
+
+    def __repr__(self):
+        return super(Table, self).__repr__()[:-1] + ' dim ' + str(self.dimensions()) + '>'
 
     @property
     def simple_types(self):
@@ -190,6 +208,7 @@ class Table(Root):
     def indices(self):
         self._indices = []
 
+    # TODO: this method is very slow. evaluate this. (Likely due to the Root.copy method being very slow)
     def union(self, other):
         """
         Functions as SQL union for two Matrix objects.
@@ -251,8 +270,9 @@ class Table(Root):
         :param new_index: resulting location
         :return: None
         """
+        new_index_ = self._key_to_index(new_index)
         vector = self.pop(old_index)
-        list.insert(self, new_index, vector)
+        list.insert(self, new_index_, vector)
 
     def get_unique_header(self):
         """
@@ -300,6 +320,15 @@ class Table(Root):
         for index, item in enumerate(p_object):
             self[index].append(item)
 
+    def pop_row(self, index=None):
+        if index is None:
+            index = min([len(x) - 1 for x in self])
+        return tuple([x.pop(index) for x in self])
+
+    def pop_rows(self, indices):
+        indices.sort(reverse=True)
+        return [self.pop_row(i) for i in indices]
+
     def drop_row(self, row_index):
         for vector in self:
             del vector[row_index]
@@ -338,9 +367,13 @@ class Table(Root):
             vectors = zip(*obj)
         self.__load_base(vectors=vectors, header=header, known_types=known_types)
 
-    def __load_base(self, vectors, header,  known_types):
+    def __load_base(self, vectors, header, known_types):
+        # print 'load base known_types:\n', known_types
+        # if known_types:
+        #     print len(header), len(known_types)
         for i, (vector, name) in enumerate(zip(vectors, header)):
             if known_types:
+                # print known_types[i]
                 vector = self.__load_field(vector=vector, known_type=known_types[i])
             else:
                 if name not in self.default_child_name:
@@ -367,11 +400,12 @@ class Table(Root):
         return Field(children=vector, known_type=known_type, parse_dates=parse_dates)
 
     def __load_header(self, header):
+        # TODO: If a two fields in a row are completely blank below header row the loader stops loading fields resulting in incomplete data.
         if not self[:]:
             for h in header:
                 self.append(Field(children=[], name=h))
         else:
-            for i, h in enumerate(header):
+            for i, h in enumerate(header[:len(self)]):
                 if h:
                     self[i].name = h
 
@@ -414,7 +448,10 @@ class Table(Root):
                 c.writerows(self.rows())
 
     def to_excel(self, file_name='', sheet_name=None, row_start=0, col_start=0):
-        if not file_name and self.name:
+        if file_name:
+            if not file_name.endswith('.xlsx'):
+                file_name += '.xlsx'
+        elif self.name:
             file_name = str(self.name) + '.xlsx'
         else:
             file_name = '_table_data.xlsx'
@@ -426,15 +463,25 @@ class Table(Root):
     # TODO: if self+other above some size limit use MASTER instead of MASTER_MEMORY for merge database.
     # split to different functions? are these tasks reused?
     # @check_parent
-    def join(self, other=None, how='union', on=((), ), connect=MASTER_MEMORY):
+    def join(self, other=None, how='union', on=((), ), connect=None, nocase_compare=True, nulls_equal=False, drop_redundant=True):
         """
 
         :param other:
         :param how:
-        :param on:
+        :param on: [(table1_field1, table2_field1), (table1_field2, table2_field2), ... ]
         :param connect:
+        :param nocase_compare: Compares strings independent of case. Defaults to True.
+        :param nulls_equal: Sets null = null for join. Defaults to False.
         :return:
         """
+        if not connect:
+            if nulls_equal:
+                connect = MASTER  # TODO: It is possible for multiple instances of scripts to conflict in MASTER (lite locks). It would be a good idea to make new databases for each join and drop the file at the end.
+            else:
+                connect = MASTER_MEMORY
+        if connect == MASTER_MEMORY and nulls_equal:
+            Warning("Left joins don't always function reliably with nulls_equal=True! Occasionally generates nonsense joins.\n\tUse a disk connection for left outer joins using nulls_equal=True.")
+
         how = how.lower()
         # if union perform operation in python. #
         if how == 'union':
@@ -454,32 +501,64 @@ class Table(Root):
         other_join_indices = [other.index(right) for left, right in on]
         join_on = [(self_join_header[left], other_join_header[right]) for left, right in zip(self_join_indices, other_join_indices)]
 
+        # drop tables if exists #
+        try:
+            self.db_drop(connect=connect, name=self_temp_name)
+        except sqlite3.OperationalError:
+            pass
+        try:
+            other.db_drop(connect=connect, name=other_temp_name)
+        except sqlite3.OperationalError:
+            pass
+
         # write both tables to merge database #
-        if_not = True
-        self.db_write(connect=connect, name=self_temp_name, if_not=if_not)
-        other.db_write(connect=connect, name=other_temp_name, if_not=if_not)
+        if_not = False
+        self.db_write(connect=connect, name=self_temp_name, if_not=if_not, nocase_compare=nocase_compare)
+        other.db_write(connect=connect, name=other_temp_name, if_not=if_not, nocase_compare=nocase_compare)
+
+        # generate indices #
+        # self_indices, other_indices = zip(*join_on)
+        self_indices = [self[i] for i in self_join_indices]
+        other_indices = [other[i] for i in other_join_indices]
+        # self_index_name =
+        # if self_index_name >
+        self_index = Index(self_indices, name=self.name + '_auto_join_index', parent=self)
+        other_index = Index(other_indices, name=temp_str % other.name + '_auto_join_index', parent=other)
+        self.add_index(index=self_index)
+        other.add_index(index=other_index)
+        self_index.db_create(connect=connect, table_name=temp_str % self.name)
+        other_index.db_create(connect=connect, table_name=temp_str % other.name)
 
         # determine join connection object #
         # some logic using size in memory?
 
         # generate, execute, and enhance sql for new object as result #
-        sql = self.__generate_join_sql(self_name=self_temp_name, other_name=other_temp_name, how=how, on=join_on)
-        result = Table.from_sql(connect=connect, sql=sql, name=joined_table_name, parent=self.parent)
+        sql = self.__generate_join_sql(self_name=self_temp_name, other_name=other_temp_name, how=how, on=join_on,
+                                       nulls_equal=nulls_equal)
+        result = Table.from_sql(connect=connect, sql=sql, name=joined_table_name, parent=self.parent, table=self_temp_name)
         # result.note = self.note.__generate_joined_sql(other=other, sql=sql) #  notes not yet implemented
 
         # restore header #
-        final_header = self.header+other.header
+        final_header = self.header + other.header
         for i, name in enumerate(final_header):
             result[i].name = name
-        join_on = [(self.header[left], other.header[right]) for left, right in zip(self_join_indices, other_join_indices)]
+
+        # restore types #
+        final_types = self.simple_types + other.simple_types
+        for i, simple_type in enumerate(final_types):
+            result[i].simple_type = simple_type
+            if simple_type == SimpleDATETIME:
+                result[i].make_date()
 
         # drop join fields from result #
-        self.__drop_redundant_fields(obj=result, how=how, on=join_on)
+        if drop_redundant:
+            join_on = [(self.header[left], other.header[right]) for left, right in zip(self_join_indices, other_join_indices)]
+            self.__drop_redundant_fields(obj=result, how=how, on=join_on)
 
         return result
 
     @staticmethod
-    def __generate_join_sql(self_name, other_name, how, on):
+    def __generate_join_sql(self_name, other_name, how, on, nulls_equal=False):
         """
         Generates a functional sql statement for a join.
         :param self_name:
@@ -490,7 +569,13 @@ class Table(Root):
         """
         db_type = 'lite'  # if other join engines are later implemented.
         if db_type == 'lite':
-            sql = BACKENDS.generate_lite_join_sql(table1=self_name, table2=other_name, how=how, on=on)
+            sql = BACKENDS.generate_join_sql(
+                table1=self_name,
+                table2=other_name,
+                how=how,
+                on=on,
+                # nocase_compare=nocase_compare,
+                nulls_equal=nulls_equal)
         # elif db_type == 'odbc':
         #     sql = BACKENDS.generate_odbc_join_sql(table1=self.full_name(), table2=other.full_name(), how=how, on=on,
         #                                           database=self.parent.name)
@@ -511,7 +596,9 @@ class Table(Root):
             return
         elif how == 'right':
             # drop leftmost fields
-            for field in [left for left, right in on]:
+            # TODO: Evaluate this.
+            # for field in [left for left, right in on]:
+            for field in [right for left, right in on]:
                 del obj[field]
         else:
             # drop rightmost field with that name
@@ -544,24 +631,27 @@ class Table(Root):
     #     return header
 
     @check_parent
-    def db_drop(self, connect=None):
-        BACKENDS.drop_table(connect=connect, table=self.name)
+    def db_drop(self, connect=None, name=None):
+        if not name:
+            name = self.name
+        BACKENDS.drop_table(connect=connect, table=name)  # TODO: handle backends
 
     @check_parent
-    def db_write(self, connect=None, name=None, if_not=True):
+    def db_write(self, connect=None, name=None, if_not=True, nocase_compare=False):
         if not name:
             name = self.name
         header = self.get_unique_header()
         BACKENDS.create_table(connect=connect, table=name, fields=header,
-                              data_types=[t.string for t in self.simple_types], if_not=if_not)
+                              data_types=[t.string for t in self.simple_types], if_not=if_not,
+                              nocase_compare=nocase_compare)   # TODO: handle backends
         self.db_insert(connect=connect, name=name)
 
     @check_parent
     def db_insert(self, connect=None, name=None):
         if not name:
             name = self.name
-        if self[:]:
-            BACKENDS.insert_rows(connect=connect, table=name, rows=self.rows())
+        if self.rows():  # self.rows() != self[:] when containing null Fields
+            BACKENDS.insert_rows(connect=connect, table=name, rows=self.rows())   # TODO: handle backends
 
     @check_parent
     def db_update(self, connect=None):

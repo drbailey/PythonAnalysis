@@ -1,12 +1,14 @@
 __author__  = 'drew bailey'
 __version__ = 0.1
 
+
 """
 Handles file parsing.
 Accepts lightweight parsing rules and expected header rows as lists.
 Returns WorkingTable data object similar to other data class outputs.
 Should look very close to the same as other data in/out methods to a user.
 """
+
 
 from collections import OrderedDict
 from ...config import VOLUME
@@ -76,7 +78,8 @@ class Parser(Config):
         if not self.path:
             self.path = os.getcwd()
         ### Unicode used since some builtin os functions are broken
-        self.parse_path = os.getcwd() + u'\\%s\\Parse' % self.task_name
+        self.parse_path = os.path.join(os.getcwd(), unicode(self.task_name), u'Parse')
+        # self.parse_path = os.getcwd() + u'\\%s\\Parse' % self.task_name
         # self.file_rules = file_rules
         # self.pathrules = pathrules
 

@@ -107,6 +107,12 @@ class SimpleBLOB(SimpleTYPE):
     excel_format = ''
 
 
+class SimpleBOOLEAN(SimpleTYPE):
+    priority = 1.5
+    string = 'BOOLEAN'
+    excel_format = ''
+
+
 class SimpleTEXT(SimpleTYPE):
     priority = 2
     string = 'TEXT'
@@ -133,56 +139,74 @@ class SimpleDATETIME(SimpleTYPE):
 
 ### EXPLICIT TYPING ###
 
-date_types = [SimpleDATETIME,
-              datetime.date,
-              datetime.time,
-              datetime.datetime,
-              datetime.tzinfo,
-              datetime.timedelta,
-              'DATETIME',
-              'DATE',
-              'TIME',
-              'TIMESTAMP',
-              'TIMEWITHZONE',
-              'TIMESTAMPWITHZONE',
-              ]
+date_types = [
+    SimpleDATETIME,
+    datetime.date,
+    datetime.time,
+    datetime.datetime,
+    datetime.tzinfo,
+    datetime.timedelta,
+    'DATETIME',
+    'DATE',
+    'TIME',
+    'TIMESTAMP',
+    'TIMEWITHZONE',
+    'TIMESTAMPWITHZONE',
+    ]
 
-text_types = [SimpleTEXT,
-              basestring,
-              'TEXT',
-              'VARCHAR',
-              'CHAR',
-              ]
+text_types = [
+    SimpleTEXT,
+    basestring,
+    'TEXT',
+    'VARCHAR',
+    'CHAR',
+    ]
 
-real_types = [SimpleREAL,
-              float,
-              Decimal,
-              'REAL',
-              'DECIMAL',
-              'DOUBLE',
-              'NUMBER',
-              ]
+real_types = [
+    SimpleREAL,
+    float,
+    Decimal,
+    'REAL',
+    'DECIMAL',
+    'DOUBLE',
+    'NUMBER',
+    ]
 
-int_types = [SimpleINTEGER,
-             int,
-             long,
-             'INTEGER',
-             'SMALLINT',
-             'BYTEINT',
-             'BIGINT',
-             ]
+int_types = [
+    SimpleINTEGER,
+    int,
+    long,
+    'INTEGER',
+    'SMALLINT',
+    'BYTEINT',
+    'BIGINT',
+    ]
+
+bool_types = [
+    SimpleBOOLEAN,
+    bool,
+    'BOOLEAN',
+    ]
 
 # unfinished
-interval_types = [datetime.timedelta,
-                  '...']
+interval_types = [
+    datetime.timedelta,
+    '...',
+    ]
 
 # unfinished
-null_types = [SimpleNULL,
-              type(None),
-              ]
+null_types = [
+    SimpleNULL,
+    type(None),
+    ]
 
 # unfinished
-blob_types = [SimpleBLOB]
+blob_types = [
+    SimpleBLOB,
+    ]
+
+_master_types = date_types + text_types + real_types + int_types + bool_types + interval_types + null_types + blob_types
+master_types = [x for x in _master_types if isinstance(x, type)]
 
 
 def bases(cls):
@@ -232,6 +256,10 @@ def is_real(obj):
 
 def is_int(obj):
     return is_type(obj=obj, types=int_types)
+
+
+def is_bool(obj):
+    return is_type(obj=obj, types=bool_types)
 
 
 def is_null(obj):
@@ -485,9 +513,9 @@ def cast_known(value, known_simple_type, fast=True):
     Cast generator.
     :param value:
     :param known_simple_type:
+    :param fast:
     :return:
     """
-
     simple_type = explicit_simple_type(known_simple_type)
     if simple_type in(SimpleINTEGER, SimpleREAL):
         test, fn = __ct_num
@@ -495,7 +523,8 @@ def cast_known(value, known_simple_type, fast=True):
         if fast:
             test, fn = '', __fast_cast_str
         else:
-            test, fn = __ct_str
+            # test, fn = __ct_str
+            test, fn = '', __fast_cast_str  # TODO: Numeric string conversion is not desired.
     elif simple_type == SimpleNULL:
         test, fn = __ct_nul
     elif simple_type == SimpleDATETIME:

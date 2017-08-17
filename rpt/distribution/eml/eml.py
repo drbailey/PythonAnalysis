@@ -1,9 +1,11 @@
 __author__  = 'drew bailey'
 __version__ = 2.0
 
+
 """
 Email distribution package. Uses SMTP sends with HTML embedded messages.
 """
+
 
 from ...loggers import rLog
 from ...util import ambiguous_extension

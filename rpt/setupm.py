@@ -1,9 +1,11 @@
 __author__  = 'drew bailey'
 __version__ = 2.0
 
+
 """
 User facing new, edit, and remove functions acting on master tables.
 """
+
 
 from config import (MASTER_TABLES,
                      MASTER_TABLES_INDICES,
@@ -489,12 +491,12 @@ class SetupMaster(Config, Menu):
         :param new_user_name: user_name to change to.
         :return: None
         """
-        BACKENDS.alter_values(connect=MASTER, table=USER_TABLE, where=[('USER_NAME', self.user_name), ],
-                              sets=[('USER_NAME', new_user_name), ])
-        BACKENDS.alter_values(connect=MASTER, table=CONNECTION_TABLE, where=[('USER_NAME', self.user_name), ],
-                              sets=[('USER_NAME', new_user_name), ])
-        BACKENDS.alter_values(connect=MASTER, table=CRON_TABLE, where=[('USER_NAME', self.user_name), ],
-                              sets=[('USER_NAME', new_user_name), ])
+        BACKENDS.update_values(connect=MASTER, table=USER_TABLE, where=[('USER_NAME', self.user_name), ],
+                               sets=[('USER_NAME', new_user_name), ])
+        BACKENDS.update_values(connect=MASTER, table=CONNECTION_TABLE, where=[('USER_NAME', self.user_name), ],
+                               sets=[('USER_NAME', new_user_name), ])
+        BACKENDS.update_values(connect=MASTER, table=CRON_TABLE, where=[('USER_NAME', self.user_name), ],
+                               sets=[('USER_NAME', new_user_name), ])
         rLog.info('User %s renamed to %s in tables %s, %s, %s.' % (self.user_name, new_user_name,
                                                                       USER_TABLE, CONNECTION_TABLE, CRON_TABLE))
 
@@ -584,8 +586,8 @@ class SetupMaster(Config, Menu):
             table = ', '.join([USER_TABLE, CRON_TABLE, CONNECTION_TABLE])
             self.user_name = set_value
         else:
-            BACKENDS.alter_values(connect=MASTER, table=table, where=zip(list(index_fields), list(index_values)),
-                                  sets=[(set_field, set_value), ])
+            BACKENDS.update_values(connect=MASTER, table=table, where=zip(list(index_fields), list(index_values)),
+                                   sets=[(set_field, set_value), ])
         rLog.info('%s %s altered to %s in table(s) %s.' % (display_string, current, set_value, table))
         broadcast(msg='%s %s altered to %s in table(s) %s.' % (display_string, current, set_value, table), clamor=1)
 

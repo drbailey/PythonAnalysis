@@ -1,9 +1,11 @@
 __author__  = 'drew bailey'
 __version__ = 0.1
 
+
 """
 Gets data from outlook attachments in a user friendly way.
 """
+
 
 from ..com.comoutlook import ComOutlook
 

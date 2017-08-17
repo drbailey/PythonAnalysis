@@ -1,11 +1,13 @@
 __author__  = 'drew bailey'
 __version__ = 0.1
 
+
 """
 THIS IS NOT IN USE.
 Outlook Com handling via win32com. Primarily used to extract data from Outlook's currently signed in user's mail box.
 Uses regex filters to determine valid mail data_objects, can save attachments if criteria are met.
 """
+
 
 from ..config import VOLUME
 from .mipl import properties, get
@@ -16,7 +18,7 @@ import re
 import os
 
 
-class ComOutlook():
+class ComOutlook(object):
 
     def __init__(self, path=None, env='server'):
         """

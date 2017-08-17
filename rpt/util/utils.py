@@ -192,9 +192,12 @@ class Decoder(object):
                     print string, 'decoded to', unicode_string, 'using encoding', encoding
                     return unicode_string
             except:
+                # print string
                 raise UnicodeError("Still unknown encoding after attempting do guess all ENCODINGS known to package.")
 
     def decode(self, string, encoding='ascii', ignore=False):
+        if not string:
+            raise ValueError("Value '%s' is not." % string)
         unknowns = 'replace'
         if ignore:
             unknowns = 'ignore'
@@ -331,7 +334,7 @@ def make_names_unique(name_list, base_name=None, no_case=True):
         ext_index = 1
         if no_case:
             while new_name_list[i].lower() in [name.lower() for name in new_name_list[:i]]:
-                print i, new_name_list
+                # print i, new_name_list
                 new_name_list[i] = base_name + extension_from_index(ext_index)
                 ext_index += 1
         else:

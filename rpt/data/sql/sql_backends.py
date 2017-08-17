@@ -1,6 +1,7 @@
 __author__  = 'drew bailey'
 __version__ = 3.1
 
+
 """
 Functions using pyodbc and sqlite3.
 No rpt prerequisites.
@@ -14,12 +15,15 @@ REBUILD:
 docs need a lot of work.
 """
 
+
+import time
 import re
 
 from ...config import MASTER_TABLES, USER_TABLE, CONNECTION_TABLE, CRON_LOG_TABLE, LOG_TABLE, GLOBAL_TABLE
+from ..data_objects.simple_types import master_types, SimpleTEXT
 from ...util import clean, broadcast
-from sqlite3 import PARSE_COLNAMES, InterfaceError as sqlite3InterfaceError
-from pyodbc import InterfaceError as pyodbcInterfaceError
+from sqlite3 import PARSE_COLNAMES, InterfaceError as sqlite3InterfaceError, ProgrammingError as sqlite3ProgrammingError
+from pyodbc import InterfaceError as pyodbcInterfaceError, ProgrammingError as pyodbcProgrammingError, DataError as pyodbcDataError
 
 
 NOT_IMPLEMENTED_TEXT = 'Method not yet implemented for database engine class %s.'
@@ -50,7 +54,7 @@ class SQLBackends(object):
         pass
 
     def __str__(self):
-        return "SQLBackends engine object at %s." % id(self)
+        return "%s engine object at %s." % (self.__class__, id(self))
 
     def __repr__(self):
         return self.__str__()
@@ -97,12 +101,13 @@ class SQLBackends(object):
         con, crs = connect
         return [x[0] for x in crs.description]
 
-    @staticmethod
-    def types(connect):
+    def types(self, connect, table=None, schema=None):
         """
         Returns a field types list from a connection's last execute.
 
         :param connect:
+        :param table:
+        :param schema:
         :return: [type1, type2, ]
         """
         con, crs = connect
@@ -150,7 +155,7 @@ class SQLBackends(object):
 
     # ## TABLE SELECTION ###
 
-    def select(self, connect, table, schema=None, fields=None, where=None, nocase_compare=False):
+    def select(self, connect, table, schema=None, fields=None, where=None):  # , nocase_compare=False):
         """
         Selects table data.
         :param connect:
@@ -161,7 +166,7 @@ class SQLBackends(object):
         :return:
         """
         con, crs = connect
-        sql, vals = self.generate_select_sql(table=table, schema=schema, fields=fields, where=where, nocase_compare=nocase_compare)
+        sql, vals = self.generate_select_sql(table=table, schema=schema, fields=fields, where=where)
         broadcast(msg=sql, clamor=7)
         # print sql
         if vals:
@@ -170,14 +175,13 @@ class SQLBackends(object):
             rtrn = crs.execute(sql).fetchall()
         return rtrn
 
-    def generate_select_sql(self, table, schema, fields, where, nocase_compare):
+    def generate_select_sql(self, table, schema, fields, where):
         """
 
         :param table:
         :param schema:
         :param fields:
         :param where:
-        :param nocase_compare:
         :return:
         """
         table = self._process_table(table=table, schema=schema)
@@ -192,8 +196,8 @@ class SQLBackends(object):
         if where:
             flds, vals = zip(*where)
             sql += '\nWHERE %s = ? ' % ' = ?\n AND '.join([clean(raw=fld, sql=self.clean_level) for fld in flds])+' \n'
-            if nocase_compare:
-                sql += ' COLLATE NOCASE\n'
+            # if nocase_compare:
+            #     sql += ' COLLATE NOCASE\n'
             sql += ';'
         else:
             vals = None
@@ -209,6 +213,7 @@ class SQLBackends(object):
         :return:
         """
         con, crs = connect
+        # print sql
         if values:
             rtrn = crs.execute(sql, values).fetchall()
         else:
@@ -238,7 +243,7 @@ class SQLBackends(object):
     # ## TABLE MANAGEMENT ###
 
     # # CREATE ##
-    def create_table(self, connect, table, fields, schema=None, data_types=None, if_not=True):
+    def create_table(self, connect, table, fields, schema=None, data_types=None, if_not=True, nocase_compare=False):
         """
 
         :param connect:
@@ -252,7 +257,7 @@ class SQLBackends(object):
         con, crs = connect
         table = self._process_table(table=table, schema=schema)
 
-        fields = ', '.join(self._generate_write_fields(fields=fields, data_types=data_types))
+        fields = ', '.join(self._generate_write_fields(fields=fields, data_types=data_types, nocase_compare=nocase_compare))
         if if_not:
             sql = """CREATE TABLE IF NOT EXISTS %s(%s);"""
         else:
@@ -328,25 +333,30 @@ class SQLBackends(object):
             self.drop_index(connect=connect, index_name=index[1])
         broadcast(msg='All indices dropped from %s.' % connect, clamor=9)
 
-    def drop_rows(self, connect, table, where):
+    def drop_rows(self, connect, table, where, schema=None, commit=True):
         # make safe
         """
         Drops rows where conditions are met.
         :param connect:
         :param table:
         :param where: [(field_a, value_a), ..., (field_x, value_x), ]
+        :param schema:
+        :param commit:
         :return:
         """
         con, crs = connect
-        table = clean(raw=table, sql=self.clean_level)
+        table = self._process_table(table=table, schema=schema)
+
         flds, vals = zip(*where)
         flds = ' = ? AND '.join(self._generate_fields(fields=flds))
         sql = 'DELETE FROM %s WHERE %s = ?' % (table, flds)
         # print sql
         # print vals
         crs.execute(sql, vals)
-        con.commit()
+        if commit:
+            con.commit()
         broadcast(msg='Rows dropped from %s, SQL: %s' % (table, sql), clamor=9)
+        return sql  # TODO: for data migration debugging.
 
     # TODO: implement.
     def drop_field(self, connect, table, field):
@@ -363,6 +373,73 @@ class SQLBackends(object):
         con.commit()
         broadcast(msg='Field added to %s, SQL: %s' % (table, sql), clamor=9)
 
+    # TODO: Below two methods are an attempt to make insert method faster with batching and no full rollbacks. Currently much slower.
+    # def __insert_row(self, connect, sql, row, exceptions):
+    #     test = True
+    #     con, crs = connect
+    #     try:
+    #         crs.execute(sql, row)
+    #     except exceptions:
+    #         new_row = []
+    #         for element in row:
+    #             if (not isinstance(element, basestring) and hasattr(element, '__iter__')) or \
+    #                     any([isinstance(element, t) for t in [float, int, long, complex]]):
+    #                 new_row.append(str(element))  # TODO: unicode handling? special chars?
+    #             else:
+    #                 new_row.append(element)
+    #         if test:
+    #             try:
+    #                 crs.execute(sql, new_row)
+    #             except Exception, e:
+    #                 print sql
+    #                 print new_row
+    #                 print e
+    #         else:
+    #             crs.execute(sql, new_row)
+    #     except (sqlite3ProgrammingError, pyodbcProgrammingError):
+    #         try:
+    #             new_row = tuple([str(x) if not any([isinstance(x, t) for t in master_types]) else x for x in row])
+    #         except OverflowError:
+    #             new_row = []
+    #             for element in row:
+    #                 if (not isinstance(element, basestring) and hasattr(element, '__iter__')) or \
+    #                         any([isinstance(element, t) for t in [float, int, long, complex]]):
+    #                     new_row.append(str(element))  # TODO: unicode handling? special chars?
+    #                 else:
+    #                     new_row.append(element)
+    #         if test:
+    #             try:
+    #                 crs.execute(sql, new_row)
+    #             except Exception, e:
+    #                 print sql
+    #                 print new_row
+    #                 print e
+    #         else:
+    #             crs.execute(sql, new_row)
+    #     # con.commit()
+    #
+    # def insert_rows(self, connect, table, rows, fields=None, schema=None, exceptions=()):
+    #     con, crs = connect
+    #     batch_n = 100
+    #     table = self._process_table(table=table, schema=schema)
+    #
+    #     values_sql = ','.join(['?' for x in range(len(rows[0]))])
+    #     if fields:
+    #         sql = "INSERT INTO %s (%s) VALUES(%s);" % \
+    #               (table, ', '.join(self._generate_fields(fields=fields)), values_sql)
+    #     else:
+    #         sql = "INSERT INTO %s VALUES(%s);" % (table, values_sql)
+    #
+    #     # TODO: better way of allowing pytypes in tables but converting on write? check columns that don't type well?
+    #     e = (sqlite3InterfaceError, pyodbcInterfaceError, OverflowError,) + exceptions
+    #     for i, row in enumerate(rows):
+    #         self.__insert_row(connect=connect, sql=sql, row=row, exceptions=e)
+    #         if i % batch_n or i == len(rows) - 1:
+    #             # commits on i == 0, that's okay.
+    #             con.commit()
+    #
+    #     broadcast(msg='**Rows inserted into %s**\n SQL:\n%s' % (table, sql), clamor=9)
+
     def insert_rows(self, connect, table, rows, fields=None, schema=None, exceptions=()):
         con, crs = connect
         table = self._process_table(table=table, schema=schema)
@@ -375,42 +452,196 @@ class SQLBackends(object):
             sql = "INSERT INTO %s VALUES(%s);" % (table, values_sql)
 
         # TODO: better way of allowing pytypes in tables but converting on write? check columns that don't type well?
-        e = (sqlite3InterfaceError, pyodbcInterfaceError) + exceptions
+        e = (sqlite3InterfaceError, pyodbcInterfaceError, OverflowError,) + exceptions
         try:
             # print sql
             # print rows
             crs.executemany(sql, rows)
+            #######################################
+            # for row in rows:
+            #     try:
+            #         crs.execute(sql, row)
+            #     except Exception, e:
+            #         print sql
+            #         print row
+            #         print e
+            #######################################
         except e:
+            # # works on sqlite3 and pyodbc TODO: not working with pyodbc
+            print 'hit rollback'
+            con.rollback()
+            con.commit()
+            print 'post rollback length', len(rows)
+            # max_sleep_time = 30
+            # sleep_time = len(rows) * 0.01
+            # if max_sleep_time < sleep_time:
+            #     sleep_time = max_sleep_time
+            # time.sleep(sleep_time)
             for row in rows:
                 try:
                     crs.execute(sql, row)
                 except e:
                     new_row = []
-
                     for element in row:
-                        if not isinstance(element, basestring) and hasattr(element, '__iter__'):
-                            new_row.append(str(element))
-                            # print str(element)
+                        if (not isinstance(element, basestring) and hasattr(element, '__iter__')) or \
+                                any([isinstance(element, t) for t in [float, int, long, complex]]):
+                            new_row.append(str(element))  # TODO: unicode handling? special chars?
                         else:
                             new_row.append(element)
                     crs.execute(sql, new_row)
+        except (sqlite3ProgrammingError, pyodbcProgrammingError):
+            print 'hit rollback Programming error'
+            con.rollback()
+            con.commit()
+            print 'post rollback length', len(rows)
+            for i, row in enumerate(rows):
+                # print i
+                try:
+                    new_row = tuple([str(x) if not any([isinstance(x, t) for t in master_types]) else x for x in row])
+                except OverflowError:
+                    new_row = []
+                    for element in row:
+                        if (not isinstance(element, basestring) and hasattr(element, '__iter__')) or \
+                                any([isinstance(element, t) for t in [float, int, long, complex]]):
+                            new_row.append(str(element))  # TODO: unicode handling? special chars?
+                        else:
+                            new_row.append(element)
+                # crs.execute(sql, new_row)
+                try:
+                    crs.execute(sql, new_row)
+                except Exception, e:
+                    print sql
+                    print new_row
+                    print e
+        except pyodbcDataError:
+            print 'hit rollback Data error'
+            con.rollback()
+            con.commit()
+            for i, row in enumerate(rows):
+                try:
+                    crs.execute(sql, row)
+                except Exception, e:
+                    print sql
+                    print i, row
+                    print e
         con.commit()
         broadcast(msg='**Rows inserted into %s**\n SQL:\n%s' % (table, sql), clamor=9)
 
-    def alter_values(self, connect, table, where, sets=None, schema=None):
+    def insert_row(self, connect, table, row, fields=None, schema=None, exceptions=(), commit=True):
+        """
+
+        :param connect:
+        :param table:
+        :param row:
+        :param fields:
+        :param schema:
+        :param exceptions:
+        :param commit:
+        :return:
+        """
+        con, crs = connect
+        table = self._process_table(table=table, schema=schema)
+
+        values_sql = ', '.join(['?' for x in range(len(row))])
+        if fields:
+            sql = "INSERT INTO %s (%s) VALUES(%s);" % \
+                  (table, ', '.join(self._generate_fields(fields=fields)), values_sql)
+        else:
+            sql = "INSERT INTO %s VALUES(%s);" % (table, values_sql)
+
+        # TODO: better way of allowing pytypes in tables but converting on write? check columns that don't type well?
+        e = (sqlite3InterfaceError, pyodbcInterfaceError, OverflowError,) + exceptions
+        try:
+            crs.execute(sql, row)
+        except e:
+            new_row = []
+            for element in row:
+                if (not isinstance(element, basestring) and hasattr(element, '__iter__')) or \
+                        any([isinstance(element, t) for t in [float, int, long, complex]]):
+                    new_row.append(str(element))  # TODO: unicode handling? special chars?
+                else:
+                    new_row.append(element)
+            crs.execute(sql, new_row)
+        except (sqlite3ProgrammingError, pyodbcProgrammingError):
+            try:
+                new_row = tuple([str(x) if not any([isinstance(x, t) for t in master_types]) else x for x in row])
+            except OverflowError:
+                new_row = []
+                for element in row:
+                    if (not isinstance(element, basestring) and hasattr(element, '__iter__')) or \
+                            any([isinstance(element, t) for t in [float, int, long, complex]]):
+                        new_row.append(str(element))  # TODO: unicode handling? special chars?
+                    else:
+                        new_row.append(element)
+            try:
+                crs.execute(sql, new_row)
+            except Exception, e:
+                print sql
+                print new_row
+                print e
+        # except pyodbcDataError:
+        #     crs.execute(sql, row)
+        except Exception, e:
+            print sql
+            print row
+            print e
+        if commit:
+            con.commit()
+        broadcast(msg='**Row inserted into %s**\n SQL:\n%s' % (table, sql), clamor=9)
+        # print sql
+        # print row
+
+    # def update_many_values(self, connect, table, where, values, sets=None, schema=None):
+    #     con, crs = connect
+    #     table = self._process_table(table=table, schema=schema)
+    #     if not sets:
+    #         return
+    #     set_fields, set_values = zip(*sets)
+    #     check_fields, check_values = zip(*where)
+    #     sets_sql = ' = ? AND '.join(self._generate_fields(fields=set_fields))
+    #     checks_sql = ' = ? AND '.join(self._generate_fields(fields=check_fields))
+    #     sql = 'UPDATE %s SET %s = ? WHERE %s = ?;' % (table, sets_sql, checks_sql)
+    #     values = [tuple(list(set_values)+list(check_values))] * len(values)
+    #     print sql, values
+    #     # crs.executemany(sql, values)
+    #     # con.commit()
+    #     # broadcast(msg='', clamor=9)
+
+    def update_values(self, connect, table, where, sets=None, schema=None, commit=True):
         # make safe
         con, crs = connect
         table = self._process_table(table=table, schema=schema)
         if not sets:
-            sets = where  # TODO: so... it does nothing if sets = where
+            return
         set_fields, set_values = zip(*sets)
         check_fields, check_values = zip(*where)
-        sets_sql = ' = ? AND '.join(self._generate_fields(fields=set_fields))
-        checks_sql = ' = ? AND '.join(self._generate_fields(fields=check_fields))
+        sets_sql = ' = ?,\n'.join(self._generate_fields(fields=set_fields))
+        checks_sql = ' = ?\nAND '.join(self._generate_fields(fields=check_fields))
         sql = 'UPDATE %s SET %s = ? WHERE %s = ?;' % (table, sets_sql, checks_sql)
-        crs.execute(sql, tuple(list(set_values)+list(check_values)))
-        con.commit()
-        broadcast(msg='Values updated in table %s, SQL: %s' % (table, sql), clamor=9)  # TODO: not correct log message.
+        # print sql, '\n\n', tuple(list(set_values)+list(check_values))
+        try:
+            crs.execute(sql, tuple(list(set_values) + list(check_values)))
+        ####################################################################################################################
+        except Exception, e:
+            print sql
+            print tuple(list(set_values) + list(check_values))
+            print e
+        ####################################################################################################################
+        except (sqlite3ProgrammingError, pyodbcProgrammingError):
+            try:
+                new_row = tuple([str(x) if not any([isinstance(x, t) for t in master_types]) else x for x in list(set_values) + list(check_values)])
+            except OverflowError:
+                new_row = []
+                for element in set_values:
+                    if (not isinstance(element, basestring) and hasattr(element, '__iter__')) or \
+                            any([isinstance(element, t) for t in [float, int, long, complex]]):
+                        new_row.append(str(element))  # TODO: unicode handling? special chars?
+                    else:
+                        new_row.append(element)
+            crs.execute(sql, new_row)
+        if commit:
+            con.commit()
+        broadcast(msg='Values updated in table %s, SQL: %s' % (table, sql), clamor=9)  # TODO: not correct log message. (broadcast doesn't log)
         # self.reindex(connect=connect, table=table)
 
     def reindex(self, connect, table, schema=None):
@@ -440,7 +671,7 @@ class SQLBackends(object):
         self._not_implemented()
 
     # ## SQL GENERATION ###
-    def generate_join_sql(self, table1, table2, how, on, database=None):
+    def generate_join_sql(self, table1, table2, how, on, database=None, nocase_compare=True):
         self._not_implemented()
 
     @staticmethod
@@ -453,10 +684,10 @@ class SQLBackends(object):
         sql = '\nSELECT '
         for arg in args:
             sql += '%s.*, ' % arg
-        sql = sql[:-2]+' '
+        sql = sql[:-2] + ' '
         return sql
 
-    def _generate_on(self, table1, table2, on):
+    def _generate_on(self, table1, table2, on, nulls_equal=False):
         """
         Generates on statement for given tables and on entry.
         on = [(t1.col1, t2.col1), (t1.col2, t2.col2),...]
@@ -465,13 +696,21 @@ class SQLBackends(object):
         starter = '\nON '
         joiner = '\n AND '
         ons = []
+
         for fields in on:
             c1, c2 = self._generate_write_fields(fields=fields)
-            ons.append(table1+'.'+c1+' = '+table2+'.'+c2+' ')
-        sql = starter+joiner.join(ons)
+            if nulls_equal:
+                ons.append('(' + table1 + '.' + c1 + ' = ' + table2 + '.' + c2 +
+                           ' OR (' + table1 + '.' + c1 + ' IS NULL AND ' + table2 + '.' + c2 + ' IS NULL)) ')
+            else:
+                ons.append(table1 + '.' + c1 + ' = ' + table2 + '.' + c2 + ' ')
+        sql = starter + joiner.join(ons)
         return sql
 
-    def _generate_where(self, table, fields, values):
+    # def _generate_null_join(self, table1, table2, on):
+    #     pass
+
+    def _generate_where(self, table, fields, values, param=False):
         """
         Generates WHERE SQL code.
         :return:
@@ -481,7 +720,7 @@ class SQLBackends(object):
         wheres = []
         fields = self._generate_write_fields(fields=fields)
         for f, v in zip(fields, values):
-            if isinstance(v, basestring):
+            if isinstance(v, basestring) and not param:
                 if str(v).lower().strip() in['null', 'not null']:
                     wheres.append("%s.%s IS %s " % (table, f, v))
                 else:
@@ -491,28 +730,113 @@ class SQLBackends(object):
         sql = starter+joiner.join(wheres)
         return sql
 
+    # TODO: write generate_insert_sql method to match updates
+
+    def generate_insert_sql(self, schema, table, insert_fields, where_fields=None, if_not=True):
+        if not where_fields:
+            where_fields = insert_fields
+
+        table = self._process_table(table=table, schema=schema)
+        values_sql = ','.join(['?' for x in range(len(insert_fields))])
+        fields_sql = ', '.join(self._generate_fields(fields=insert_fields))
+        where_sql = self._generate_where(table=table, fields=where_fields, values=['?'] * len(where_fields), param=True)
+
+        replacer = {
+            'table': table,
+            'fields_sql': fields_sql,
+            'where_sql': where_sql,
+            'values_sql': values_sql,
+            }
+
+        insert_base = u'''
+            INSERT INTO %(table)s
+            VALUES (%(values_sql)s)
+            ''' % replacer
+        if insert_fields:
+            insert_base = u'''
+                INSERT INTO %(table)s (%(fields_sql)s)
+                VALUES (%(values_sql)s)
+                ''' % replacer
+
+        sql = insert_base
+        if if_not:
+            select_base = u'''
+                SELECT *
+                FROM %(table)s
+                %(where_sql)s
+                ''' % replacer
+
+            sql = u'''
+                BEGIN
+                    IF NOT EXISTS(
+                %(select_base)s
+                    )
+                    BEGIN
+                %(insert_base)s
+                    END
+                END
+                ;''' % {'select_base': select_base, 'insert_base': insert_base}
+
+        return sql
+
+    def generate_update_sql(self, schema, table, set_fields, where_fields):
+        table = self._process_table(table=table, schema=schema)
+        sets = self._generate_set(table=table, fields=set_fields)
+        wheres = self._generate_where(table=table, fields=where_fields, values=['?'] * len(where_fields), param=True)
+        sql = u"""
+        UPDATE %(table)s
+        %(set)s
+        %(where)s
+        """ % {
+            'table': table,
+            'set': sets,
+            'where': wheres,
+        }
+        return sql
+
+    def _generate_set(self, table, fields):
+        """
+        Generates WHERE SQL code.
+        :return:
+        """
+        starter = '\nSET '
+        joiner = ',\n'
+        sets = []
+        values = ['?'] * len(fields)
+        fields = self._generate_write_fields(fields=fields)
+        for f, v in zip(fields, values):
+            sets.append("%s.%s = %s" % (table, f, v))
+        sql = starter+joiner.join(sets)
+        return sql
+
     def _generate_group(self):
         pass
 
     def _generate_order(self):
         pass
 
-    def _generate_write_fields(self, fields, data_types=None):
+    def _generate_write_fields(self, fields, data_types=None, nocase_compare=False):
         new_fields = []
         if data_types:
             for field, data_type in zip(fields, data_types):
-                new_fields.append(self._generate_write_field(field=field, data_type=data_type))
+                new_fields.append(self._generate_write_field(field=field, data_type=data_type, nocase_compare=nocase_compare))
         else:
             for field in fields:
-                new_fields.append(self._generate_write_field(field))
+                new_fields.append(self._generate_write_field(field=field, nocase_compare=nocase_compare))
         return new_fields
 
-    def _generate_write_field(self, field, data_type=None):
+    def _generate_write_field(self, field, data_type=None, nocase_compare=False):
         field = clean(raw=field, sql=self.clean_level)
         if data_type:
             entry = data_type.split()
-            return '"'+str(field)+'" ['+str(entry[0])+']'+' '+' '.join(entry[1:])
-        return '"'+str(field)+'"'
+            result = '"'+str(field)+'" ['+str(entry[0])+']'+' '+' '.join(entry[1:])
+            if nocase_compare and entry[0] == SimpleTEXT.string:
+                result += ' COLLATE NOCASE '
+            return result
+        result = '"'+str(field)+'"'
+        if nocase_compare:
+            result += ' COLLATE NOCASE '
+        return result
 
     def _generate_fields(self, fields):
         new_fields = []
@@ -667,17 +991,18 @@ class SQLiteBackends(SQLBackends):
         :return: [('type', 'name', 'tbl_name', 'rootpage', 'sql'), ]
         """
         con, crs = connect
-        rtrn = crs.execute("SELECT * FROM SQLITE_MASTER WHERE type='table' AND name=? COLLATE NOCASE;",
+        rtrn = crs.execute("SELECT * FROM SQLITE_MASTER WHERE type='table' AND name=? COLLATE NOCASE;",  # TODO: always COLLATE NOCASE? use a parameter nocase_compare?
                            (table,)).fetchall()
         return rtrn
 
-    def get_columns(self, connect, schema, table):
+    def get_columns(self, connect, table, schema=None):
         """
         PRAGMA table_info(table_name);
             results in: [('cid', 'name', 'type', 'notnull', 'dflt_value', 'pk'),]
             Name is index [1], Type is index [2] for each row.
         :param connect: (connect, cursor) for a lite source
         :param table: table name
+        :param schema: schema name
         :return: table info as fetchall [(),]
         """
         con, crs = connect
@@ -685,12 +1010,17 @@ class SQLiteBackends(SQLBackends):
         rtrn = [(table, row[1], row[2]) for row in rslt]
         return rtrn
 
-    def get_column(self, connect, schema, table, column):
+    def get_column(self, connect, table, column, schema=None):
         con, crs = connect
         rslt = crs.execute('PRAGMA table_info(%s);' % table).fetchall()
         for row in rslt:
             if row[1].lower() == column.lower():
                 return row
+
+    def types(self, connect, table=None, schema=None):
+        if table:
+            return [x[2] for x in self.get_columns(connect=connect, table=table, schema=schema)]
+        return super(SQLiteBackends, self).types(connect=connect)
 
     # tested
     def get_indices(self, connect, table=None, schema=None):
@@ -755,7 +1085,7 @@ class SQLiteBackends(SQLBackends):
         rtrn = crs.execute(sql).fetchall()
         return rtrn
 
-    def generate_join_sql(self, table1, table2, how, on, database=None):
+    def generate_join_sql(self, table1, table2, how, on, database=None, nulls_equal=False):
         how = how.lower().strip()
         outer, right = False, False
         if how == 'outer':
@@ -765,9 +1095,12 @@ class SQLiteBackends(SQLBackends):
             # right = True
             table1, table2 = table2, table1
             how = 'left'
+            a, b = zip(*on)
+            on = zip(b, a)
         s = self._generate_select(table1, table2)
         j = self._generate_join(how=how)
-        o = self._generate_on(table1=table1, table2=table2, on=on)
+        o = self._generate_on(table1=table1, table2=table2, on=on, nulls_equal=nulls_equal)
+        # n = self._generate_null_join(on=o)
 
         fields = [c1 for c1, c2 in on]
         if outer:  # sqlite outer join replacement, non-native join type.
@@ -782,15 +1115,21 @@ UNION ALL
 FROM %(table2)s
 %(join)s %(table1)s
 %(on)s
-%(where)s;
-""" % {'select': s, 'join': j, 'on': o, 'where': w, 'table1': table1, 'table2': table2}
+%(nulls)s
+%(where)s
+""" % {'select': s, 'join': j, 'on': o, 'where': w, 'table1': table1, 'table2': table2, 'nulls': ''}
         else:
             sql = """
 %(select)s
 FROM %(table1)s
 %(join)s %(table2)s
-%(on)s;
-""" % {'select': s, 'join': j, 'on': o, 'table1': table1, 'table2': table2}
+%(on)s
+%(nulls)s
+""" % {'select': s, 'join': j, 'on': o, 'table1': table1, 'table2': table2, 'nulls': ''}
+        # if nocase_compare:
+        #     sql += ' COLLATE NOCASE\n'
+        sql += ';'
+        # print sql
         return sql
 
     @staticmethod
@@ -862,9 +1201,10 @@ FROM %(table1)s
         self.drop_table(connect=connect, table=table+'_temp')
         con.commit()
 
-    def alter_values(self, connect, table, where, sets=None, schema=None):
-        super(SQLiteBackends, self).alter_values(connect=connect, table=table, where=where, sets=sets, schema=schema)
+    def update_values(self, connect, table, where, sets=None, schema=None, commit=True):
+        super(SQLiteBackends, self).update_values(connect=connect, table=table, where=where, sets=sets, schema=schema, commit=commit)
         self.reindex(connect=connect, table=table)
+
 
 class ODBCBackends(SQLBackends):
     def __init__(self):
@@ -1030,7 +1370,7 @@ class ODBCBackends(SQLBackends):
             rtrn = connect[1].foreignKeys(table=table).fetchall()
         return rtrn
 
-    def generate_join_sql(self, table1, table2, how, on, database=None):
+    def generate_join_sql(self, table1, table2, how, on, database=None, nocase_compare=False):
         how = how.lower().strip()
         s = self._generate_select(table1, table2)
         j = self._generate_join(how=how)
@@ -1136,6 +1476,7 @@ class OracleBackends(ODBCBackends):
                 pass
             else:
                 raise e
+
     def _generate_fields(self, fields):
         new_fields = []
         for field in fields:

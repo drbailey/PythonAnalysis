@@ -111,7 +111,6 @@ class Server(Root):
         #         ctype = ctype.lower().strip()
         #     except AttributeError:
         #         pass
-
         if isinstance(ctype, int):
             self.__load_connection(ctype)
         elif ctype.lower() in MASTER_STRINGS:

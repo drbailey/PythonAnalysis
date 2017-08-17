@@ -23,6 +23,9 @@ class Field(SimpleVector, Root):
         super(Field, self).__init__(children, name=name, name_clean_level=self.name_clean_level, parent=parent, **kwargs)
         self._name = name
 
+    def __repr__(self):
+        return super(Field, self).__repr__()[:-1] + ' len ' + str(len(self)) + '>'
+
     def __setitem__(self, key, value):
         """
         Uses list.__setitem__.
@@ -30,6 +33,9 @@ class Field(SimpleVector, Root):
         """
         index = self._key_to_index(key=key)
         list.__setitem__(self, index, value)
+
+    def index(self, value, start=None, stop=None):
+        return list.index(self, x=value, i=start, j=stop)
 
     @check_parent
     def db_drop(self, connect=None, table=None):

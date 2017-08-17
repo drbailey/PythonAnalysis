@@ -13,8 +13,9 @@ DEFAULT_MAX_PRINT_CHAR = 2000
 class Note(basestring):
 
     # settings as list will allow for changes across all note objects
-    _settings = {'max_print_char': DEFAULT_MAX_PRINT_CHAR,
-                 }
+    _settings = {
+        'max_print_char': DEFAULT_MAX_PRINT_CHAR,
+         }
 
     def __init__(self):
         super(Note, self).__init__()

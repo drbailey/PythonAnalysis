@@ -1,14 +1,17 @@
 __author__  = 'drew bailey'
 __version__ = 0.2
 
+
 """
 Excel read, write, and copy functions for mimic lite object use;
 using xlrd, XlsxWriter, and win32com respectively.
 """
 
+
 # from ...com import packages
 from ...util import make_names_unique
 import xlsxwriter
+import datetime
 # import win32com
 import xlrd
 
@@ -221,8 +224,10 @@ class ExcelWriterV2(Writer):
             # # get sheet name
             if not sheet_name and obj.name:
                 this_sheet_name = obj.name
-            else:
+            elif not sheet_name:
                 this_sheet_name = 'Data%s' % i
+            else:
+                this_sheet_name = sheet_name
             # # make sure name doesn't already exist in workbook (fatal error) ##
             this_sheet_name = make_names_unique(name_list=[ws.name for ws in wb.worksheets()]+[this_sheet_name],
                                                 base_name=this_sheet_name, no_case=True)[-1]
@@ -251,6 +256,8 @@ class ExcelWriterV2(Writer):
             for row_index, row in enumerate(obj.rows()):
                 for col_index, value in enumerate(row):
                     # # write column values
+                    if value in [datetime.datetime(1900, 01, 01), datetime.datetime(1900, 01, 01).date()]:
+                        value = 1
                     if not isinstance(value, basestring) and hasattr(value, '__iter__'):
                         value = str(value)
                     ws.write(row_index+row_start+1, col_index+col_start, value, column_styles[col_index])

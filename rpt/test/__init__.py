@@ -24,11 +24,11 @@ __all__ = [
     ]
 
 if functions:
-    __all__ += functions
+    __all__ += [f.__name__ for f in functions]
 
 
 def test_all():
-    import warn
+    # import warn
     if functions:
         for obj in functions:
             obj()

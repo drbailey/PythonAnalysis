@@ -117,7 +117,7 @@ def last_column(worksheet, row=INDEXING):
 def open_workbook(app, file_name, path=None):
     if not path:
         path = os.getcwd()
-    wb = app.Workbooks.Open(Filename=path+'\\'+file_name, ReadOnly=0)
+    wb = app.Workbooks.Open(Filename=os.path.join(path, file_name), ReadOnly=0)
     return wb
 
 
@@ -287,7 +287,7 @@ def save_workbook(workbook, save_name=None, path=None):
     if not path:
         path = os.getcwd()
     if save_name:
-        workbook.SaveAs(path+'\\'+save_name)
+        workbook.SaveAs(os.path.join(path, save_name))
     else:
         workbook.Save()
     return workbook
@@ -356,10 +356,10 @@ def range_to_image(worksheet, range, height=None, width=None, filename=None):
     range.CopyPicture(xlPrinter, xlPicture)
     chart.Chart.Paste()
     if filename:
-        if u'\\' not in filename:
-            filename = unicode(os.getcwd()) + u'\\' + filename
+        if u'\\' not in filename:  # TODO: fix this check to use a generic separator.
+            filename = os.path.join(unicode(os.getcwd()), filename)
     else:
-        filename = unicode(os.getcwd()) + u'\\' + 'image.png'
+        filename = os.path.join(unicode(os.getcwd()), 'image.png')
     chart.Chart.Export(filename)
     chart.Delete()
 

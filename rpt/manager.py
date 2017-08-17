@@ -1,13 +1,16 @@
 __author__  = 'drew bailey'
 __version__ = 0.1
 
+
 """
 Master path file backup methods.
 """
 
+
 from .distribution import rwc_file
 from .config import MASTER_PATH, BACKUP_PATH
 from .util import broadcast
+from .data import BACKENDS, MASTER, MASTER_MEMORY
 import os
 import re
 
@@ -79,3 +82,11 @@ def __delete(path, pattern):
                 except WindowsError:
                     broadcast(msg='WindowsError occurred: file %s not deleted. (File is likely in use).' % f, clamor=0)
     broadcast(msg='Delete Complete.', clamor=1)
+
+
+def drop_temp_tables():
+    for connect in (MASTER, MASTER_MEMORY):
+        table_names = BACKENDS.get_table_names(connect)
+        for table in table_names:
+            if '_temp' in table:
+                BACKENDS.drop_table(connect=connect, table=table)

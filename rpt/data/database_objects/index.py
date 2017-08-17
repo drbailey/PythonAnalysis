@@ -1,9 +1,11 @@
 __author__  = 'drew bailey'
 __version__ = 0.1
 
+
 """
 A table index.
 """
+
 
 from ..sql import BACKENDS
 from .root import Root, check_parent
@@ -28,7 +30,7 @@ class Index(Root):
         Apply index.
         """
         if not table_name:
-            table = self.parent.name
+            table_name = self.parent.name
         if not table_name:
             LookupError('Please specify table.')
         BACKENDS.create_index(connect=connect, index=self.name, table=table_name,

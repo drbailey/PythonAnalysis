@@ -1,10 +1,12 @@
 __author__ = 'drew bailey'
 __version__ = 2.0
 
+
 """
 __init__ for sql package.
 Internal sql should not be passed outside of data package as these are not intended to be user facing.
 """
+
 
 from ...config import SQL_CLEAN_LEVEL, MASTER_DB_NAME, MASTER_PATH, MASTER_TEXT_FACTORY
 from sql_backends import (SQLBackends, SQLiteBackends, ODBCBackends, MSSQLServerBackends, OracleBackends,
@@ -13,20 +15,21 @@ from sql_util import is_db
 import sqlite3
 
 
-__all__ = ['__author__',
-           '__version__',
-           'SQLBackends',
-           'SQLiteBackends',
-           'ODBCBackends',
-           'MSSQLServerBackends',
-           'OracleBackends',
-           'TeradataBackends',
-           'IBMDB2Backends',
-           'is_db',
-           'BACKENDS',
-           'MASTER',
-           'MASTER_MEMORY',
-           ]
+__all__ = [
+    '__author__',
+    '__version__',
+    'SQLBackends',
+    'SQLiteBackends',
+    'ODBCBackends',
+    'MSSQLServerBackends',
+    'OracleBackends',
+    'TeradataBackends',
+    'IBMDB2Backends',
+    'is_db',
+    'BACKENDS',
+    'MASTER',
+    'MASTER_MEMORY',
+    ]
 
 # ## SQLBackends INSTANCE ###
 BACKENDS = SQLiteBackends()

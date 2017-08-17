@@ -48,7 +48,11 @@ class SimpleVector(list):
         if elements:
             if fast is None and len(elements) > self.fast_load_cutoff:
                 fast = True
+            else:
+                fast = False
             self.load_vector(elements=elements, parse_dates=parse_dates, known_type=known_type, init=True, fast=fast)
+        else:
+            self.simple_type = SimpleNULL
 
     @property
     def simple_type(self):

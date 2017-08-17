@@ -158,19 +158,19 @@ class Cron(object):
         """
         Edits the next run time in the database.
         """
-        BACKENDS.alter_values(connect=MASTER,
-                              table=CRON_TABLE,
-                              where=[('TASK_NAME', task[self.index('task_name')])],
-                              sets=[('NEXT_RUN', next_run)])
+        BACKENDS.update_values(connect=MASTER,
+                               table=CRON_TABLE,
+                               where=[('TASK_NAME', task[self.index('task_name')])],
+                               sets=[('NEXT_RUN', next_run)])
 
     def _insert_last_run(self, task, last_run):
         """
         Inputs last run into cron table.
         """
-        BACKENDS.alter_values(connect=MASTER,
-                              table=CRON_TABLE,
-                              where=[('TASK_NAME', task[self.index('task_name')])],
-                              sets=[('LAST_RUN', last_run)])
+        BACKENDS.update_values(connect=MASTER,
+                               table=CRON_TABLE,
+                               where=[('TASK_NAME', task[self.index('task_name')])],
+                               sets=[('LAST_RUN', last_run)])
         
     def begin(self, infinite=False):
         """
@@ -200,10 +200,10 @@ class Cron(object):
                 next_run = run_dtat
                 break
         if unusual_runs:
-            BACKENDS.alter_values(connect=MASTER,
-                                  table=CRON_TABLE,
-                                  where=[('TASK_NAME', task_name), ('USER_NAME', user_name)],
-                                  sets=[('FLAGGED_RUNS', unusual_runs)])
+            BACKENDS.update_values(connect=MASTER,
+                                   table=CRON_TABLE,
+                                   where=[('TASK_NAME', task_name), ('USER_NAME', user_name)],
+                                   sets=[('FLAGGED_RUNS', unusual_runs)])
         return next_run
 
     @staticmethod
